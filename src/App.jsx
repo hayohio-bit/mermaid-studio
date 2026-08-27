@@ -240,6 +240,59 @@ function stateSvgToFlow(svgEl, relations) {
   return { nodes, edges }
 }
 
+// classDiagram: 노드 위치·멤버 목록은 SVG에서, 관계는 파서 DB에서 가져온다.
+// 관계의 type1이 'none'이 아니면 화살촉이 id1 쪽이므로 흐름은 id2 → id1이다.
+function classSvgToFlow(svgEl, relations) {
+  const nodes = []
+  const svgRect = svgEl.getBoundingClientRect()
+
+  svgEl.querySelectorAll('.node').forEach((el) => {
+    const rect = el.getBoundingClientRect()
+    const idMatch = el.id.match(/^classId-(.+)-\d+$/)
+    const nodeId = idMatch ? idMatch[1] : el.id
+    const memberLines = [...el.querySelectorAll('.nodeLabel')]
+      .map((t) => t.textContent.trim())
+      .filter(Boolean)
+    nodes.push({
+      id: nodeId,
+      position: { x: rect.left - svgRect.left, y: rect.top - svgRect.top },
+      data: { label: memberLines.join('\n') || nodeId, shape: 'rect' },
+      style: {
+        ...shapeStyle('rect'),
+        whiteSpace: 'pre-line',
+        textAlign: 'left',
+        fontSize: '13px',
+      },
+    })
+  })
+
+  const edges = relations.map((r, i) => {
+    const arrowAt1 = r.relation?.type1 !== 'none' && r.relation?.type1 !== undefined
+    const label = r.title && r.title !== 'none' ? r.title : undefined
+    const dotted = r.relation?.lineType === 1
+    return {
+      id: `e-${r.id1}-${r.id2}-${i}`,
+      source: arrowAt1 ? r.id2 : r.id1,
+      target: arrowAt1 ? r.id1 : r.id2,
+      label,
+      data: { stroke: dotted ? 'dotted' : 'normal' },
+      zIndex: label ? 1 : 0,
+      style: {
+        stroke: '#9ca3af',
+        strokeWidth: 1.5,
+        ...(dotted ? { strokeDasharray: '5 5' } : {}),
+      },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+      labelStyle: { fontSize: '12px' },
+      labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+      labelBgPadding: [4, 2],
+      labelBgBorderRadius: 4,
+    }
+  })
+
+  return { nodes, edges }
+}
+
 // subgraph를 표현하는 그룹 노드: 좌상단에 제목을 표시하는 반투명 컨테이너
 function GroupNode({ data }) {
   return (
@@ -915,12 +968,14 @@ function Studio() {
       let result
       if (diagram.type.startsWith('flowchart')) {
         result = svgToFlow(svgEl, diagram.db.getEdges(), diagram.db.getSubGraphs())
+      } else if (diagram.type.toLowerCase().startsWith('class')) {
+        result = classSvgToFlow(svgEl, diagram.db.getRelations())
       } else if (diagram.type.toLowerCase().startsWith('state')) {
         result = stateSvgToFlow(svgEl, diagram.db.getRelations())
       } else {
         setStatus({
           type: 'info',
-          message: `지원하지 않는 다이어그램 유형입니다: ${diagram.type} (flowchart, stateDiagram만 변환할 수 있습니다)`,
+          message: `지원하지 않는 다이어그램 유형입니다: ${diagram.type} (flowchart, stateDiagram, classDiagram만 변환할 수 있습니다)`,
         })
         return
       }
