@@ -401,6 +401,7 @@ export default function App() {
   const [edges, setEdges] = useState(() => loadSaved()?.edges ?? [])
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedEdge, setSelectedEdge] = useState(null)
+  const [status, setStatus] = useState(null) // { type: 'error' | 'info', message }
   const mermaidRef = useRef(null)
 
   // 코드·노드·엣지가 바뀔 때마다 localStorage에 저장해서 새로고침해도 유지한다
@@ -419,6 +420,7 @@ export default function App() {
     setEdges([])
     setSelectedNode(null)
     setSelectedEdge(null)
+    setStatus(null)
   }
 
   const onNodesChange = useCallback((changes) => {
@@ -537,7 +539,10 @@ export default function App() {
       } else if (diagram.type.toLowerCase().startsWith('state')) {
         result = stateSvgToFlow(svgEl, diagram.db.getRelations())
       } else {
-        console.log(`지원하지 않는 다이어그램 유형: ${diagram.type} (flowchart, stateDiagram만 변환 가능)`)
+        setStatus({
+          type: 'info',
+          message: `지원하지 않는 다이어그램 유형입니다: ${diagram.type} (flowchart, stateDiagram만 변환할 수 있습니다)`,
+        })
         return
       }
 
@@ -545,10 +550,25 @@ export default function App() {
       setEdges(result.edges)
       setSelectedNode(null)
       setSelectedEdge(null)
+      setStatus(null)
     } catch (e) {
-      console.log('렌더링 에러:', e)
+      setStatus({ type: 'error', message: `문법 오류: ${e.message}` })
     }
   }
+
+  // 코드를 고치면 600ms 뒤에 자동으로 다시 렌더링한다.
+  // 첫 마운트(localStorage 복원 직후)에는 실행하지 않는다 — 복원된 노드 스타일을 덮어쓰면 안 되기 때문이다.
+  const isFirstCodeEffect = useRef(true)
+  useEffect(() => {
+    if (isFirstCodeEffect.current) {
+      isFirstCodeEffect.current = false
+      return
+    }
+    const timer = setTimeout(renderDiagram, 600)
+    return () => clearTimeout(timer)
+    // renderDiagram은 매 렌더마다 새로 만들어지므로 code만 의존성으로 둔다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code])
 
   const exportToPng = useCallback(() => {
   const flowEl = document.querySelector('.react-flow')
@@ -592,6 +612,21 @@ export default function App() {
             resize: 'none',
           }}
         />
+        {status && (
+          <div style={{
+            padding: '8px 10px',
+            borderRadius: '6px',
+            fontSize: '12px',
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+            background: status.type === 'error' ? '#fef2f2' : '#fffbeb',
+            border: `1px solid ${status.type === 'error' ? '#fca5a5' : '#fcd34d'}`,
+            color: status.type === 'error' ? '#b91c1c' : '#92400e',
+          }}>
+            {status.message}
+          </div>
+        )}
+
         <button
           onClick={renderDiagram}
           style={{
