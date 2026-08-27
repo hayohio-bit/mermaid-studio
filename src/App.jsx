@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import {
   ReactFlow, Background, Controls, MiniMap,
-  applyNodeChanges, applyEdgeChanges, addEdge
+  applyNodeChanges, applyEdgeChanges, addEdge, MarkerType
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mermaid from 'mermaid'
@@ -113,6 +113,7 @@ function svgToFlow(svgEl) {
         // 라벨이 있는 엣지는 노드 레이어(z-index 0) 위로 올려서 라벨이 노드에 가려지지 않게 한다
         zIndex: label ? 1 : 0,
         style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
         labelStyle: { fontSize: '12px' },
         labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
         labelBgPadding: [4, 2],
@@ -185,6 +186,7 @@ function stateSvgToFlow(svgEl, relations) {
     label: r.relationTitle || undefined,
     zIndex: r.relationTitle ? 1 : 0,
     style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
     labelStyle: { fontSize: '12px' },
     labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
     labelBgPadding: [4, 2],
@@ -567,6 +569,7 @@ export default function App() {
           {
             ...connection,
             style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
             labelStyle: { fontSize: '12px' },
             labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
             labelBgPadding: [4, 2],
@@ -657,6 +660,10 @@ export default function App() {
       }
       if (key === 'animated') {
         return { ...e, animated: value }
+      }
+      if (key === 'stroke') {
+        // 화살촉 색도 선 색과 함께 바꾼다
+        return { ...e, style: { ...e.style, stroke: value }, markerEnd: { ...e.markerEnd, type: MarkerType.ArrowClosed, color: value } }
       }
       return { ...e, style: { ...e.style, [key]: value } }
     }
