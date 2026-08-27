@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { toPng } from 'html-to-image'
+import { toPng, toSvg } from 'html-to-image'
 import {
   ReactFlow, Background, Controls, MiniMap,
   applyNodeChanges, applyEdgeChanges, addEdge
@@ -608,20 +608,28 @@ export default function App() {
     setStatus(null)
   }
 
-  const exportToPng = useCallback(() => {
-  const flowEl = document.querySelector('.react-flow')
-  if (!flowEl) return
-
-  toPng(flowEl, {
-    backgroundColor: '#ffffff',
-    quality: 1,
-  }).then((dataUrl) => {
+  const downloadDataUrl = (dataUrl, filename) => {
     const link = document.createElement('a')
-    link.download = 'mermaid-studio.png'
+    link.download = filename
     link.href = dataUrl
     link.click()
-  })
-}, [])
+  }
+
+  const exportToPng = useCallback(() => {
+    const flowEl = document.querySelector('.react-flow')
+    if (!flowEl) return
+    toPng(flowEl, { backgroundColor: '#ffffff', quality: 1 }).then((dataUrl) =>
+      downloadDataUrl(dataUrl, 'mermaid-studio.png')
+    )
+  }, [])
+
+  const exportToSvg = useCallback(() => {
+    const flowEl = document.querySelector('.react-flow')
+    if (!flowEl) return
+    toSvg(flowEl, { backgroundColor: '#ffffff' }).then((dataUrl) =>
+      downloadDataUrl(dataUrl, 'mermaid-studio.svg')
+    )
+  }, [])
 
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
@@ -713,21 +721,40 @@ export default function App() {
           캔버스 → 코드
         </button>
 
-        <button
-  onClick={exportToPng}
-  style={{
-    padding: '10px',
-    background: '#10b981',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  }}
->
-  PNG 내보내기
-</button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={exportToPng}
+            style={{
+              flex: 1,
+              padding: '10px',
+              background: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+            }}
+          >
+            PNG
+          </button>
+          <button
+            onClick={exportToSvg}
+            style={{
+              flex: 1,
+              padding: '10px',
+              background: '#0ea5e9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+            }}
+          >
+            SVG
+          </button>
+        </div>
 
         <button
           onClick={resetAll}
