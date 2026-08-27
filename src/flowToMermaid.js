@@ -2,8 +2,10 @@
 // stateDiagram으로 만든 캔버스도 flowchart 형식으로 통일해서 내보낸다.
 export function flowToMermaid(nodes, edges) {
   const lines = ['flowchart LR']
-  const byId = new Map(nodes.map((n) => [n.id, n]))
-  const connected = new Set()
+
+  const groups = nodes.filter((n) => n.type === 'labeledGroup')
+  const plainNodes = nodes.filter((n) => n.type !== 'labeledGroup')
+  const byId = new Map(plainNodes.map((n) => [n.id, n]))
 
   // 노드 모양(data.shape)을 mermaid 괄호 문법으로 되살린다
   const wrappers = {
@@ -20,25 +22,39 @@ export function flowToMermaid(nodes, edges) {
     return `${n.id}${open}${(n.data?.label || n.id).replace(/"/g, "'")}${close}`
   }
 
-  edges.forEach((e) => {
-    const s = byId.get(e.source)
-    const t = byId.get(e.target)
-    if (!s || !t) return
-    connected.add(e.source)
-    connected.add(e.target)
-    const arrow = e.label ? `-->|${String(e.label).replace(/\|/g, '/')}|` : '-->'
-    lines.push(`  ${nodeRef(s)} ${arrow} ${nodeRef(t)}`)
+  // 노드 정의를 전부 먼저 내보낸다: subgraph 소속 노드는 블록 안에, 나머지는 밖에.
+  // 엣지 라인에서는 id만 쓰므로 정의가 중복되지 않는다.
+  groups.forEach((g) => {
+    const title = (g.data?.label || '').replace(/"/g, "'")
+    const gid = g.data?.subgraphId || g.id
+    lines.push(title ? `  subgraph ${gid}[${title}]` : `  subgraph ${gid}`)
+    plainNodes
+      .filter((n) => n.parentId === g.id)
+      .forEach((n) => lines.push(`    ${nodeRef(n)}`))
+    lines.push('  end')
   })
+  plainNodes.filter((n) => !n.parentId).forEach((n) => lines.push(`  ${nodeRef(n)}`))
 
-  // 어디에도 연결되지 않은 노드도 정의만 따로 내보낸다
-  nodes.forEach((n) => {
-    if (!connected.has(n.id)) lines.push(`  ${nodeRef(n)}`)
+  // 엣지: 점선·굵은 선은 data.stroke에 보존된 값으로 되살린다
+  edges.forEach((e) => {
+    if (!byId.has(e.source) || !byId.has(e.target)) return
+    const label = e.label ? String(e.label).replace(/\|/g, '/') : ''
+    let arrow
+    if (e.data?.stroke === 'dotted') {
+      // 점선의 라벨은 -. 라벨 .-> 형태가 공식 문법이다
+      arrow = label ? `-. ${label} .->` : '-.->'
+    } else if (e.data?.stroke === 'thick') {
+      arrow = label ? `==>|${label}|` : '==>'
+    } else {
+      arrow = label ? `-->|${label}|` : '-->'
+    }
+    lines.push(`  ${e.source} ${arrow} ${e.target}`)
   })
 
   // 기본값에서 바뀐 노드 스타일은 style 지시문으로 내보낸다.
   // 마름모는 변환기가 회색 배경을 기본으로 주므로 그 값은 사용자 변경으로 치지 않는다.
   const defaultBg = { diamond: '#e5e7eb' }
-  nodes.forEach((n) => {
+  plainNodes.forEach((n) => {
     const st = n.style || {}
     const parts = []
     const baseBg = defaultBg[n.data?.shape] || '#ffffff'

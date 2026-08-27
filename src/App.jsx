@@ -88,9 +88,32 @@ function shapeStyle(shape) {
   }
 }
 
-function svgToFlow(svgEl, dbEdges) {
+const GROUP_PREFIX = 'sub-'
+
+function svgToFlow(svgEl, dbEdges, subGraphs = []) {
   const nodes = []
   const svgRect = svgEl.getBoundingClientRect()
+
+  // subgraph는 SVG의 .cluster 요소(위치·크기)와 파서 DB(소속 노드 목록)를 합쳐
+  // React Flow 그룹 노드로 만든다. 부모가 배열에서 자식보다 앞에 있어야 한다.
+  const parentOf = new Map() // 노드 id → 그룹 노드 id
+  const groupRects = new Map() // 그룹 노드 id → 절대 위치
+  subGraphs.forEach((sg) => {
+    const clusterEl = svgEl.querySelector(`.cluster[id="${CSS.escape(sg.id)}"]`)
+    if (!clusterEl) return
+    const rect = clusterEl.getBoundingClientRect()
+    const groupId = `${GROUP_PREFIX}${sg.id}`
+    const pos = { x: rect.left - svgRect.left, y: rect.top - svgRect.top }
+    groupRects.set(groupId, pos)
+    sg.nodes.forEach((n) => parentOf.set(n, groupId))
+    nodes.push({
+      id: groupId,
+      type: 'labeledGroup',
+      position: pos,
+      data: { label: sg.title || sg.id, subgraphId: sg.id },
+      style: { width: Math.ceil(rect.width), height: Math.ceil(rect.height) },
+    })
+  })
 
   const nodeEls = svgEl.querySelectorAll('.node')
   nodeEls.forEach((el) => {
@@ -106,12 +129,14 @@ function svgToFlow(svgEl, dbEdges) {
     const nodeId = idMatch ? idMatch[1] : rawId
     const shape = detectShape(el)
 
+    const parentId = parentOf.get(nodeId)
+    const abs = { x: rect.left - svgRect.left, y: rect.top - svgRect.top }
+    // 자식 노드의 position은 부모 그룹 기준 상대 좌표여야 한다
+    const origin = parentId ? groupRects.get(parentId) : null
     nodes.push({
       id: nodeId,
-      position: {
-        x: rect.left - svgRect.left,
-        y: rect.top - svgRect.top,
-      },
+      position: origin ? { x: abs.x - origin.x, y: abs.y - origin.y } : abs,
+      ...(parentId ? { parentId, extent: 'parent' } : {}),
       data: { label: label.trim(), shape },
       style: shapeStyle(shape),
     })
@@ -124,9 +149,15 @@ function svgToFlow(svgEl, dbEdges) {
     source: e.start,
     target: e.end,
     label: e.text || undefined,
+    // 점선(-.->)·굵은 선(==>)을 캔버스에도 반영하고, 역변환을 위해 data에 보존한다
+    data: { stroke: e.stroke },
     // 라벨이 있는 엣지는 노드 레이어(z-index 0) 위로 올려서 라벨이 노드에 가려지지 않게 한다
     zIndex: e.text ? 1 : 0,
-    style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+    style: {
+      stroke: '#9ca3af',
+      strokeWidth: e.stroke === 'thick' ? 3 : 1.5,
+      ...(e.stroke === 'dotted' ? { strokeDasharray: '5 5' } : {}),
+    },
     markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
     labelStyle: { fontSize: '12px' },
     labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
@@ -208,6 +239,31 @@ function stateSvgToFlow(svgEl, relations) {
 
   return { nodes, edges }
 }
+
+// subgraph를 표현하는 그룹 노드: 좌상단에 제목을 표시하는 반투명 컨테이너
+function GroupNode({ data }) {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      border: '1px dashed #9ca3af',
+      borderRadius: '8px',
+      background: 'rgba(156, 163, 175, 0.08)',
+    }}>
+      <div style={{
+        padding: '4px 10px',
+        fontSize: '12px',
+        fontWeight: 600,
+        color: '#6b7280',
+      }}>
+        {data.label}
+      </div>
+    </div>
+  )
+}
+
+// 매 렌더마다 객체가 새로 만들어지지 않도록 컴포넌트 밖 상수로 둔다
+const nodeTypes = { labeledGroup: GroupNode }
 
 // 사이드패널 컴포넌트
 function SidePanel({ node, onChange, onClose, onDelete, T }) {
@@ -683,7 +739,12 @@ function Studio() {
 
   const onNodesChange = useCallback((changes) => {
     if (changes.some((c) => c.type === 'remove')) record()
-    setNodes((nds) => applyNodeChanges(changes, nds))
+    setNodes((nds) => {
+      const next = applyNodeChanges(changes, nds)
+      // 그룹 노드가 삭제되면 그 자식도 함께 제거한다 (고아 parentId는 오류를 일으킨다)
+      const ids = new Set(next.map((n) => n.id))
+      return next.filter((n) => !n.parentId || ids.has(n.parentId))
+    })
     // 키보드 삭제 등으로 노드가 제거되면 열려 있던 편집 패널을 닫는다
     changes.forEach((c) => {
       if (c.type === 'remove') {
@@ -721,6 +782,8 @@ function Studio() {
     [record]
   )
   const onNodeClick = useCallback((event, node) => {
+    // 그룹(subgraph) 노드는 노드 편집 패널의 대상이 아니다
+    if (node.type === 'labeledGroup') return
     setSelectedNode(node)
     setSelectedEdge(null)
   }, [])
@@ -851,7 +914,7 @@ function Studio() {
 
       let result
       if (diagram.type.startsWith('flowchart')) {
-        result = svgToFlow(svgEl, diagram.db.getEdges())
+        result = svgToFlow(svgEl, diagram.db.getEdges(), diagram.db.getSubGraphs())
       } else if (diagram.type.toLowerCase().startsWith('state')) {
         result = stateSvgToFlow(svgEl, diagram.db.getRelations())
       } else {
@@ -1225,6 +1288,7 @@ function Studio() {
           deleteKeyCode={['Backspace', 'Delete']}
           multiSelectionKeyCode={['Meta', 'Control']}
           zoomOnDoubleClick={false}
+          nodeTypes={nodeTypes}
           colorMode={dark ? 'dark' : 'light'}
           fitView
         >
