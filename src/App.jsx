@@ -15,6 +15,7 @@ const defaultCode = `flowchart LR
 
 const STORAGE_KEY = 'mermaid-studio'
 const THEME_KEY = 'mermaid-studio-theme'
+const VIEW_KEY = 'mermaid-studio-view'
 
 // 패널·사이드바에 쓰는 중립 색상 테마. 노드·엣지 색은 사용자 콘텐츠라 바꾸지 않는다.
 const themes = {
@@ -39,6 +40,18 @@ function loadSaved() {
     return JSON.parse(localStorage.getItem(STORAGE_KEY))
   } catch {
     return null
+  }
+}
+
+// 캔버스 보조 UI(미니맵·컨트롤·격자)의 표시 여부. 저장된 값이 없으면 셋 다 켠 상태로 시작한다.
+const defaultView = { miniMap: true, controls: true, background: true }
+
+function loadView() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIEW_KEY))
+    return saved ? { ...defaultView, ...saved } : defaultView
+  } catch {
+    return defaultView
   }
 }
 
@@ -881,6 +894,19 @@ function Studio() {
     }
   })
   const T = themes[dark ? 'dark' : 'light']
+  const [view, setView] = useState(loadView)
+
+  const toggleView = (key) => {
+    setView((v) => {
+      const next = { ...v, [key]: !v[key] }
+      try {
+        localStorage.setItem(VIEW_KEY, JSON.stringify(next))
+      } catch {
+        // 저장 실패는 무시한다 (표시 여부는 이번 세션에만 유지된다)
+      }
+      return next
+    })
+  }
 
   const toggleTheme = () => {
     setDark((d) => {
@@ -1612,6 +1638,32 @@ function Studio() {
           초기화
         </button>
 
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {[
+            { key: 'miniMap', label: '미니맵' },
+            { key: 'controls', label: '컨트롤' },
+            { key: 'background', label: '격자' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => toggleView(key)}
+              title={`${label} ${view[key] ? '숨기기' : '보이기'}`}
+              style={{
+                flex: 1,
+                padding: '8px 4px',
+                background: view[key] ? '#6366f1' : T.inputBg,
+                color: view[key] ? 'white' : T.subText,
+                border: `1px solid ${view[key] ? '#6366f1' : T.border}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <button
           onClick={toggleTheme}
           style={{
@@ -1649,9 +1701,9 @@ function Studio() {
           colorMode={dark ? 'dark' : 'light'}
           fitView
         >
-          <Background />
-          <Controls />
-          <MiniMap />
+          {view.background && <Background />}
+          {view.controls && <Controls />}
+          {view.miniMap && <MiniMap />}
         </ReactFlow>
       </div>
 
