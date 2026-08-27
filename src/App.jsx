@@ -88,9 +88,8 @@ function shapeStyle(shape) {
   }
 }
 
-function svgToFlow(svgEl) {
+function svgToFlow(svgEl, dbEdges) {
   const nodes = []
-  const edges = []
   const svgRect = svgEl.getBoundingClientRect()
 
   const nodeEls = svgEl.querySelectorAll('.node')
@@ -100,8 +99,10 @@ function svgToFlow(svgEl) {
       el.querySelector('span')?.textContent ||
       el.querySelector('text')?.textContent ||
       el.id
+    // SVG id 형식은 flowchart-<노드id>-<일련번호>. 노드 id에 하이픈이 들어갈 수 있으므로
+    // 탐욕적 매칭으로 마지막 -숫자만 일련번호로 떼어낸다.
     const rawId = el.id
-    const idMatch = rawId.match(/flowchart-([^-]+)-\d+/)
+    const idMatch = rawId.match(/^flowchart-(.+)-\d+$/)
     const nodeId = idMatch ? idMatch[1] : rawId
     const shape = detectShape(el)
 
@@ -116,31 +117,22 @@ function svgToFlow(svgEl) {
     })
   })
 
-  // 엣지 라벨은 .edgeLabels 안에 엣지와 같은 순서로 렌더링되므로 인덱스로 대응시킨다.
-  // .edgeLabel 클래스가 안쪽 span에도 중복으로 붙어 있어서 직계 자식(g)만 선택한다.
-  const labelEls = svgEl.querySelectorAll('.edgeLabels > .edgeLabel')
-  const edgeEls = svgEl.querySelectorAll('.flowchart-link')
-  edgeEls.forEach((el, i) => {
-    const edgeId = el.id || `edge-${i}`
-    const match = edgeId.match(/L_([^_]+)_([^_]+)_\d+/)
-    if (match) {
-      const label = labelEls[i]?.textContent.trim() || ''
-      edges.push({
-        id: `e-${match[1]}-${match[2]}-${i}`,
-        source: match[1],
-        target: match[2],
-        label: label || undefined,
-        // 라벨이 있는 엣지는 노드 레이어(z-index 0) 위로 올려서 라벨이 노드에 가려지지 않게 한다
-        zIndex: label ? 1 : 0,
-        style: { stroke: '#9ca3af', strokeWidth: 1.5 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
-        labelStyle: { fontSize: '12px' },
-        labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
-        labelBgPadding: [4, 2],
-        labelBgBorderRadius: 4,
-      })
-    }
-  })
+  // 엣지는 SVG id를 파싱하는 대신 파서 DB에서 가져온다.
+  // id에 언더스코어·하이픈이 있어도 안전하고, 라벨도 인덱스 대응 없이 정확하다.
+  const edges = dbEdges.map((e, i) => ({
+    id: `e-${e.start}-${e.end}-${i}`,
+    source: e.start,
+    target: e.end,
+    label: e.text || undefined,
+    // 라벨이 있는 엣지는 노드 레이어(z-index 0) 위로 올려서 라벨이 노드에 가려지지 않게 한다
+    zIndex: e.text ? 1 : 0,
+    style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+    labelStyle: { fontSize: '12px' },
+    labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+    labelBgPadding: [4, 2],
+    labelBgBorderRadius: 4,
+  }))
 
   return { nodes, edges }
 }
@@ -859,7 +851,7 @@ function Studio() {
 
       let result
       if (diagram.type.startsWith('flowchart')) {
-        result = svgToFlow(svgEl)
+        result = svgToFlow(svgEl, diagram.db.getEdges())
       } else if (diagram.type.toLowerCase().startsWith('state')) {
         result = stateSvgToFlow(svgEl, diagram.db.getRelations())
       } else {
