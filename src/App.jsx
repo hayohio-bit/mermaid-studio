@@ -1381,7 +1381,7 @@ function Studio() {
     setSelectedNode((prev) => apply(prev))
   }
 
-  const { screenToFlowPosition, getNodesBounds } = useReactFlow()
+  const { screenToFlowPosition, getNodesBounds, fitView } = useReactFlow()
 
   const addNodeIdRef = useRef(0)
   const addNodeAt = (position) => {
@@ -1630,10 +1630,23 @@ function Studio() {
       setSelectedNode(null)
       setSelectedEdge(null)
       setStatus(notice)
+      // 변환 결과는 mermaid 레이아웃 그대로라 화면보다 클 수 있으므로 한 번 맞춰 준다.
+      // 노드가 실제로 반영된 다음에 계산해야 하므로 다음 렌더를 기다린다.
+      fitViewOnNextRenderRef.current = true
     } catch (e) {
       setStatus({ type: 'error', message: `문법 오류: ${e.message}` })
     }
   }
+
+  // 코드에서 만든 다이어그램만 화면에 맞춘다. 사용자가 노드를 옮기거나 추가할 때는
+  // 보고 있던 시점이 흔들리므로 발동하지 않게 플래그로 구분한다.
+  const fitViewOnNextRenderRef = useRef(false)
+  useEffect(() => {
+    if (!fitViewOnNextRenderRef.current) return
+    fitViewOnNextRenderRef.current = false
+    if (nodes.length === 0) return
+    fitView({ padding: 0.15 })
+  }, [nodes, fitView])
 
   // 코드를 고치면 600ms 뒤에 자동으로 다시 렌더링한다.
   // 첫 마운트(localStorage 복원 직후)에는 실행하지 않는다 — 복원된 노드 스타일을 덮어쓰면 안 되기 때문이다.
