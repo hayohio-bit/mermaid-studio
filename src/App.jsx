@@ -345,6 +345,53 @@ function erSvgToFlow(svgEl, relationships) {
   return { nodes, edges }
 }
 
+// sequenceDiagram: 참가자를 노드로, 메시지를 순번 라벨 엣지로 근사 변환한다.
+// 시간 축(라이프라인)은 캔버스 모델에 없으므로 메시지 순서는 라벨의 번호로 표현한다.
+function sequenceSvgToFlow(svgEl, actors, messages) {
+  const svgRect = svgEl.getBoundingClientRect()
+  const actorIds = new Set(actors.keys())
+
+  const nodes = [...actors.entries()].map(([id, actor], i) => {
+    const rectEl = svgEl.querySelector(`.actor-top[name="${CSS.escape(id)}"]`)
+    const rect = rectEl?.getBoundingClientRect()
+    return {
+      id,
+      position: rect
+        ? { x: rect.left - svgRect.left, y: rect.top - svgRect.top }
+        : { x: i * 220, y: 0 },
+      data: { label: actor.description || actor.name || id, shape: 'rect' },
+      style: shapeStyle('rect'),
+    }
+  })
+
+  const edges = messages
+    .filter((m) => actorIds.has(m.from) && actorIds.has(m.to) && typeof m.message === 'string')
+    .map((m, i) => {
+      const dotted = m.type === 1 // -->> 응답 계열은 점선
+      const label = `${i + 1}. ${m.message}`
+      return {
+        id: `e-seq-${i}`,
+        source: m.from,
+        target: m.to,
+        label,
+        data: { stroke: dotted ? 'dotted' : 'normal' },
+        zIndex: 1,
+        style: {
+          stroke: '#9ca3af',
+          strokeWidth: 1.5,
+          ...(dotted ? { strokeDasharray: '5 5' } : {}),
+        },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+        labelStyle: { fontSize: '12px' },
+        labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+        labelBgPadding: [4, 2],
+        labelBgBorderRadius: 4,
+      }
+    })
+
+  return { nodes, edges }
+}
+
 // subgraph를 표현하는 그룹 노드: 좌상단에 제목을 표시하는 반투명 컨테이너
 function GroupNode({ data }) {
   return (
@@ -1018,10 +1065,17 @@ function Studio() {
       const svgEl = mermaidRef.current.querySelector('svg')
 
       let result
+      let notice = null
       if (diagram.type.startsWith('flowchart')) {
         result = svgToFlow(svgEl, diagram.db.getEdges(), diagram.db.getSubGraphs())
       } else if (diagram.type.toLowerCase().startsWith('class')) {
         result = classSvgToFlow(svgEl, diagram.db.getRelations())
+      } else if (diagram.type === 'sequence') {
+        result = sequenceSvgToFlow(svgEl, diagram.db.getActors(), diagram.db.getMessages())
+        notice = {
+          type: 'info',
+          message: '시퀀스 다이어그램은 근사 변환됩니다: 참가자는 노드, 메시지는 순번이 붙은 엣지로 표현되고 시간 축(라이프라인)은 유지되지 않습니다.',
+        }
       } else if (diagram.type === 'er' || diagram.type === 'erDiagram') {
         result = erSvgToFlow(svgEl, diagram.db.getRelationships())
       } else if (diagram.type.toLowerCase().startsWith('state')) {
@@ -1029,7 +1083,7 @@ function Studio() {
       } else {
         setStatus({
           type: 'info',
-          message: `지원하지 않는 다이어그램 유형입니다: ${diagram.type} (flowchart, stateDiagram, classDiagram만 변환할 수 있습니다)`,
+          message: `지원하지 않는 다이어그램 유형입니다: ${diagram.type} (flowchart, stateDiagram, classDiagram, erDiagram, sequenceDiagram만 변환할 수 있습니다)`,
         })
         return
       }
@@ -1039,7 +1093,7 @@ function Studio() {
       setEdges(result.edges)
       setSelectedNode(null)
       setSelectedEdge(null)
-      setStatus(null)
+      setStatus(notice)
     } catch (e) {
       setStatus({ type: 'error', message: `문법 오류: ${e.message}` })
     }
