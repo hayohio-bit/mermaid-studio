@@ -6,7 +6,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mermaid from 'mermaid'
-import { flowToMermaid } from './flowToMermaid'
+import { flowToMermaid, MINDMAP_TYPE_TO_SHAPE } from './flowToMermaid'
 
 mermaid.initialize({ startOnLoad: false })
 
@@ -67,6 +67,28 @@ function loadView() {
   } catch {
     return defaultView
   }
+}
+
+// 엣지 라벨의 공통 표시 속성. 라벨은 흰 배경 위에 그리므로 글자색도 함께 고정한다 —
+// 글자색을 지정하지 않으면 캔버스 다크 모드에서 React Flow가 글자를 밝은 색으로 바꿔
+// 흰 배경과 구분되지 않는다.
+const edgeLabelProps = {
+  labelStyle: { fontSize: '12px', fill: '#111827' },
+  labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+  labelBgPadding: [4, 2],
+  labelBgBorderRadius: 4,
+}
+
+// mermaid는 svg에 width="100%"와 max-width를 붙이므로, 숨김 렌더링 영역의 폭에 맞춰
+// 축소된 크기로 그려진다. 변환기들은 getBoundingClientRect로 노드 위치를 읽기 때문에
+// 축소된 채로 두면 노드 사이 간격만 줄고 캔버스의 노드 크기는 그대로여서 서로 겹친다.
+// viewBox에 적힌 원래 크기로 고정해 1:1 배율로 그리게 만든다.
+function unscaleSvg(svgEl) {
+  const box = svgEl?.viewBox?.baseVal
+  if (!box || !box.width || !box.height) return
+  svgEl.setAttribute('width', box.width)
+  svgEl.setAttribute('height', box.height)
+  svgEl.style.maxWidth = 'none'
 }
 
 // mermaid SVG의 도형 요소로 노드 모양을 판별한다.
@@ -260,10 +282,7 @@ function svgToFlow(svgEl, dbEdges, subGraphs = [], vertices = null) {
       ...(e.stroke === 'dotted' ? { strokeDasharray: '5 5' } : {}),
     },
     markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
-    labelStyle: { fontSize: '12px' },
-    labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
-    labelBgPadding: [4, 2],
-    labelBgBorderRadius: 4,
+    ...edgeLabelProps,
   }))
 
   return { nodes, edges }
@@ -332,10 +351,7 @@ function stateSvgToFlow(svgEl, relations) {
     zIndex: r.relationTitle ? 1 : 0,
     style: { stroke: '#9ca3af', strokeWidth: 1.5 },
     markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
-    labelStyle: { fontSize: '12px' },
-    labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
-    labelBgPadding: [4, 2],
-    labelBgBorderRadius: 4,
+    ...edgeLabelProps,
   }))
 
   return { nodes, edges }
@@ -384,10 +400,7 @@ function classSvgToFlow(svgEl, relations) {
         ...(dotted ? { strokeDasharray: '5 5' } : {}),
       },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
-      labelStyle: { fontSize: '12px' },
-      labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
-      labelBgPadding: [4, 2],
-      labelBgBorderRadius: 4,
+      ...edgeLabelProps,
     }
   })
 
@@ -436,10 +449,7 @@ function erSvgToFlow(svgEl, relationships) {
         ...(dotted ? { strokeDasharray: '5 5' } : {}),
       },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
-      labelStyle: { fontSize: '12px' },
-      labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
-      labelBgPadding: [4, 2],
-      labelBgBorderRadius: 4,
+      ...edgeLabelProps,
     }
   })
 
@@ -452,17 +462,34 @@ function sequenceSvgToFlow(svgEl, actors, messages) {
   const svgRect = svgEl.getBoundingClientRect()
   const actorIds = new Set(actors.keys())
 
-  const nodes = [...actors.entries()].map(([id, actor], i) => {
+  // 원본 SVG의 참가자 순서는 유지하되 가로 위치는 다시 계산한다. SVG의 참가자 간격은
+  // 라이프라인 사이의 최소 간격이라 좁아서, 그대로 옮기면 순번이 붙은 메시지 라벨이
+  // 양옆 노드를 가린다. 노드 폭도 원본 참가자 박스에 맞춰 라벨 길이에 따라 넓어지지 않게 한다.
+  const SEQ_GAP = 180
+  const placed = [...actors.entries()].map(([id, actor], i) => {
     const rectEl = svgEl.querySelector(`.actor-top[name="${CSS.escape(id)}"]`)
     const rect = rectEl?.getBoundingClientRect()
     return {
       id,
-      position: rect
-        ? { x: rect.left - svgRect.left, y: rect.top - svgRect.top }
-        : { x: i * 220, y: 0 },
-      data: { label: actor.description || actor.name || id, shape: 'rect' },
-      style: shapeStyle('rect'),
+      actor,
+      order: rect ? rect.left - svgRect.left : i * 220,
+      width: rect?.width,
     }
+  })
+  placed.sort((a, b) => a.order - b.order)
+
+  let cursor = 0
+  const nodes = placed.map(({ id, actor, width }) => {
+    const node = {
+      id,
+      position: { x: cursor, y: 0 },
+      data: { label: actor.description || actor.name || id, shape: 'rect' },
+      style: width
+        ? { ...shapeStyle('rect'), width, textAlign: 'center' }
+        : shapeStyle('rect'),
+    }
+    cursor += (width || 150) + SEQ_GAP
+    return node
   })
 
   const edges = messages
@@ -483,12 +510,116 @@ function sequenceSvgToFlow(svgEl, actors, messages) {
           ...(dotted ? { strokeDasharray: '5 5' } : {}),
         },
         markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
-        labelStyle: { fontSize: '12px' },
-        labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
-        labelBgPadding: [4, 2],
-        labelBgBorderRadius: 4,
+        ...edgeLabelProps,
       }
     })
+
+  return { nodes, edges }
+}
+
+// mindmap: 트리 구조는 파서 DB의 getMindmap()에서, 노드 위치는 SVG에서 가져온다.
+// SVG 노드 id는 파서가 매긴 일련번호를 붙인 node_<번호> 형식이다(실측으로 확인).
+function mindmapSvgToFlow(svgEl, root) {
+  const nodes = []
+  const edges = []
+  const svgRect = svgEl.getBoundingClientRect()
+  const usedIds = new Set()
+
+  const walk = (mmNode, parentId) => {
+    const el = svgEl.querySelector(`#${CSS.escape(`node_${mmNode.id}`)}`)
+    const rect = el?.getBoundingClientRect()
+    // 같은 이름의 노드가 여러 개면 id가 겹쳐 React Flow에서 노드가 사라지므로
+    // 파서의 일련번호를 붙여 고유하게 만든다
+    let id = String(mmNode.nodeId || `node_${mmNode.id}`)
+    if (usedIds.has(id)) id = `${id}_${mmNode.id}`
+    usedIds.add(id)
+    const shape = MINDMAP_TYPE_TO_SHAPE[mmNode.type] || 'rect'
+    nodes.push({
+      id,
+      position: rect
+        ? { x: rect.left - svgRect.left, y: rect.top - svgRect.top }
+        : { x: mmNode.x ?? 0, y: mmNode.y ?? 0 },
+      // mindmapType은 역변환에서 원래 괄호 문법을 되살리는 데 쓴다
+      data: { label: mmNode.descr || id, shape, mindmapType: mmNode.type, nodeId: mmNode.nodeId },
+      style: shapeStyle(shape),
+    })
+    if (parentId) {
+      // mindmap의 연결선에는 방향이 없으므로 화살촉을 붙이지 않는다
+      edges.push({
+        id: `e-mm-${parentId}-${id}`,
+        source: parentId,
+        target: id,
+        zIndex: 0,
+        style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+      })
+    }
+    mmNode.children.forEach((child) => walk(child, id))
+  }
+
+  if (root) walk(root, null)
+  return { nodes, edges }
+}
+
+// requirementDiagram: 요구사항·요소의 속성은 파서 DB에서 읽어 여러 줄 라벨로 만들고,
+// 위치는 SVG에서 가져온다(SVG 노드 id가 곧 요구사항·요소 이름이다).
+// 라벨 형식은 flowToMermaid가 그대로 다시 읽으므로, 라벨을 고치면 코드에도 반영된다.
+function requirementSvgToFlow(svgEl, requirements, elements, relationships) {
+  const svgRect = svgEl.getBoundingClientRect()
+  const nodes = []
+
+  const positionOf = (name) => {
+    const el = svgEl.querySelector(`.node[id="${CSS.escape(name)}"]`)
+    const rect = el?.getBoundingClientRect()
+    return rect ? { x: rect.left - svgRect.left, y: rect.top - svgRect.top } : { x: 0, y: 0 }
+  }
+  const labelStyle = {
+    ...shapeStyle('rect'),
+    whiteSpace: 'pre-line',
+    textAlign: 'left',
+    fontSize: '13px',
+  }
+
+  requirements.forEach((req, name) => {
+    const lines = [`<<${req.type}>>`, name]
+    if (req.requirementId) lines.push(`ID: ${req.requirementId}`)
+    if (req.text) lines.push(`Text: ${req.text}`)
+    if (req.risk) lines.push(`Risk: ${req.risk}`)
+    if (req.verifyMethod) lines.push(`Verification: ${req.verifyMethod}`)
+    nodes.push({
+      id: name,
+      position: positionOf(name),
+      data: { label: lines.join('\n'), shape: 'rect', reqKind: 'requirement' },
+      style: labelStyle,
+    })
+  })
+
+  elements.forEach((el, name) => {
+    const lines = ['<<Element>>', name]
+    if (el.type) lines.push(`Type: ${el.type}`)
+    if (el.docRef) lines.push(`Doc Ref: ${el.docRef}`)
+    nodes.push({
+      id: name,
+      position: positionOf(name),
+      data: { label: lines.join('\n'), shape: 'rect', reqKind: 'element' },
+      style: labelStyle,
+    })
+  })
+
+  const ids = new Set(nodes.map((n) => n.id))
+  const edges = relationships
+    .filter((r) => ids.has(r.src) && ids.has(r.dst))
+    .map((r, i) => ({
+      id: `e-req-${i}`,
+      source: r.src,
+      target: r.dst,
+      label: r.type,
+      // 역변환에서 관계 종류를 그대로 되살리기 위해 보존한다
+      data: { relType: r.type, stroke: 'normal' },
+      zIndex: 1,
+      style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+      ...edgeLabelProps,
+    }))
 
   return { nodes, edges }
 }
@@ -537,21 +668,39 @@ function SidePanel({ node, onChange, onClose, onDelete, T }) {
     }}>
       <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: T.text }}>노드 편집</h3>
 
-      {/* 텍스트 */}
+      {/* 텍스트: 클래스·요구사항처럼 여러 줄인 라벨은 줄 수에 맞춘 textarea로 편집한다 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <label style={{ fontSize: '12px', color: T.subText }}>텍스트</label>
-        <input
-          value={node.data.label}
-          onChange={(e) => onChange('label', e.target.value)}
-          style={{
-            padding: '6px 8px',
-            border: `1px solid ${T.border}`,
-            borderRadius: '6px',
-            fontSize: '14px',
-            background: T.inputBg,
-            color: T.text,
-          }}
-        />
+        {node.data.label?.includes('\n') ? (
+          <textarea
+            value={node.data.label}
+            rows={Math.min(node.data.label.split('\n').length + 1, 10)}
+            onChange={(e) => onChange('label', e.target.value)}
+            style={{
+              padding: '6px 8px',
+              border: `1px solid ${T.border}`,
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontFamily: 'inherit',
+              resize: 'vertical',
+              background: T.inputBg,
+              color: T.text,
+            }}
+          />
+        ) : (
+          <input
+            value={node.data.label}
+            onChange={(e) => onChange('label', e.target.value)}
+            style={{
+              padding: '6px 8px',
+              border: `1px solid ${T.border}`,
+              borderRadius: '6px',
+              fontSize: '14px',
+              background: T.inputBg,
+              color: T.text,
+            }}
+          />
+        )}
       </div>
 
       {/* 모양 */}
@@ -1024,6 +1173,9 @@ function Studio() {
   const [code, setCode] = useState(() => loadSaved()?.code ?? defaultCode)
   const [nodes, setNodes] = useState(() => loadSaved()?.nodes ?? [])
   const [edges, setEdges] = useState(() => loadSaved()?.edges ?? [])
+  // 캔버스가 어떤 mermaid 유형에서 왔는지 기억해서, 코드로 되돌릴 때 원본 문법으로 내보낸다.
+  // 전용 문법이 없는 유형(state·class·er·sequence)은 flowchart로 통일한다.
+  const [sourceType, setSourceType] = useState(() => loadSaved()?.sourceType ?? 'flowchart')
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedEdge, setSelectedEdge] = useState(null)
   const [status, setStatus] = useState(null) // { type: 'error' | 'info', message }
@@ -1068,11 +1220,11 @@ function Studio() {
   // 코드·노드·엣지가 바뀔 때마다 localStorage에 저장해서 새로고침해도 유지한다
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ code, nodes, edges }))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ code, nodes, edges, sourceType }))
     } catch {
       // 저장 공간 초과 등은 무시한다 (저장 실패가 편집을 막으면 안 된다)
     }
-  }, [code, nodes, edges])
+  }, [code, nodes, edges, sourceType])
 
   // ---- 실행 취소 / 다시 실행 ----
   // 스냅샷은 편집 동작이 시작되기 직전에 기록한다. 슬라이더 드래그처럼 연속으로
@@ -1135,6 +1287,7 @@ function Studio() {
     setCode(defaultCode)
     setNodes([])
     setEdges([])
+    setSourceType('flowchart')
     setSelectedNode(null)
     setSelectedEdge(null)
     setStatus(null)
@@ -1174,10 +1327,7 @@ function Studio() {
             ...connection,
             style: { stroke: '#9ca3af', strokeWidth: 1.5 },
             markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
-            labelStyle: { fontSize: '12px' },
-            labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
-            labelBgPadding: [4, 2],
-            labelBgBorderRadius: 4,
+            ...edgeLabelProps,
           },
           eds
         )
@@ -1423,9 +1573,11 @@ function Studio() {
       const { svg } = await mermaid.render('mermaid-diagram', code)
       mermaidRef.current.innerHTML = svg
       const svgEl = mermaidRef.current.querySelector('svg')
+      unscaleSvg(svgEl)
 
       let result
       let notice = null
+      let nextSourceType = 'flowchart'
       if (diagram.type.startsWith('flowchart')) {
         result = svgToFlow(svgEl, diagram.db.getEdges(), diagram.db.getSubGraphs(), diagram.db.getVertices())
       } else if (diagram.type.toLowerCase().startsWith('class')) {
@@ -1440,6 +1592,21 @@ function Studio() {
         result = erSvgToFlow(svgEl, diagram.db.getRelationships())
       } else if (diagram.type.toLowerCase().startsWith('state')) {
         result = stateSvgToFlow(svgEl, diagram.db.getRelations())
+      } else if (diagram.type === 'mindmap') {
+        result = mindmapSvgToFlow(svgEl, diagram.db.getMindmap())
+        nextSourceType = 'mindmap'
+      } else if (diagram.type === 'requirement' || diagram.type === 'requirementDiagram') {
+        result = requirementSvgToFlow(
+          svgEl,
+          diagram.db.getRequirements(),
+          diagram.db.getElements(),
+          diagram.db.getRelationships(),
+        )
+        nextSourceType = 'requirement'
+        notice = {
+          type: 'info',
+          message: '요구사항 다이어그램은 노드 라벨의 "키: 값" 줄이 곧 속성입니다. 라벨을 고치면 코드로 내보낼 때 그대로 반영됩니다.',
+        }
       } else {
         // 간트·파이처럼 노드-엣지 모델로 옮길 수 없는 유형은 편집 없이 미리보기만 제공한다.
         // 숨김 영역을 비워서 같은 svg id가 문서에 두 번 들어가지 않게 한다
@@ -1457,6 +1624,7 @@ function Studio() {
 
       record()
       setPreview(null)
+      setSourceType(nextSourceType)
       setNodes(result.nodes)
       setEdges(result.edges)
       setSelectedNode(null)
@@ -1501,8 +1669,9 @@ function Studio() {
       return
     }
     skipAutoRenderRef.current = true
-    setCode(flowToMermaid(nodes, edges))
-    setStatus(null)
+    const { code: next, warning } = flowToMermaid(nodes, edges, sourceType)
+    setCode(next)
+    setStatus(warning ? { type: 'info', message: warning } : null)
   }
 
   const downloadDataUrl = (dataUrl, filename) => {

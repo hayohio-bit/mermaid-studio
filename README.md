@@ -33,6 +33,8 @@ npm run dev
 | `stateDiagram` | 지원 | flowchart 형식으로 | 상태 전이를 엣지로 옮깁니다. |
 | `erDiagram` | 지원 | flowchart 형식으로 | 엔티티와 관계를 옮깁니다. |
 | `sequenceDiagram` | 근사 변환 | flowchart 형식으로 | 시간 축(라이프라인)은 유지되지 않습니다. |
+| `mindmap` | 지원 | mindmap 형식으로 | 트리 구조와 노드 모양을 원래 문법으로 되돌립니다. |
+| `requirementDiagram` | 지원 | requirementDiagram 형식으로 | 요구사항 속성은 노드 라벨의 `키: 값` 줄로 편집합니다. |
 | `pie`, `gantt` 등 나머지 | 미리보기 전용 | 미지원 | 화면 표시와 이미지 내보내기만 됩니다. |
 
 자세한 사용 방법은 [사용 가이드](docs/guide.md)를 참고하십시오.
