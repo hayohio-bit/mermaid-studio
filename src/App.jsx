@@ -230,6 +230,28 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
         />
       </div>
 
+      {/* 모양 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <label style={{ fontSize: '12px', color: '#666' }}>모양</label>
+        <select
+          value={node.data.shape || 'rect'}
+          onChange={(e) => onChange('shape', e.target.value)}
+          style={{
+            padding: '6px 8px',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            fontSize: '13px',
+            background: 'white',
+          }}
+        >
+          <option value="rect">사각형 [ ]</option>
+          <option value="round">둥근 사각형 ( )</option>
+          <option value="stadium">스타디움 ([ ])</option>
+          <option value="circle">원 (( ))</option>
+          <option value="diamond">마름모 {'{ }'}</option>
+        </select>
+      </div>
+
       {/* 배경색 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <label style={{ fontSize: '12px', color: '#666' }}>배경색</label>
@@ -590,21 +612,27 @@ export default function App() {
   }, [])
 
   const onPanelChange = (key, value) => {
-    setNodes((nds) =>
-      nds.map((n) => {
-        if (n.id !== selectedNode.id) return n
-        if (key === 'label') {
-          return { ...n, data: { ...n.data, label: value } }
-        }
-        return { ...n, style: { ...n.style, [key]: value } }
-      })
-    )
-    setSelectedNode((prev) => {
+    const apply = (n) => {
       if (key === 'label') {
-        return { ...prev, data: { ...prev.data, label: value } }
+        return { ...n, data: { ...n.data, label: value } }
       }
-      return { ...prev, style: { ...prev.style, [key]: value } }
-    })
+      if (key === 'shape') {
+        // 모양이 바뀌면 모양 기본 스타일로 다시 깔되, 사용자가 바꾼 색·크기는 유지한다
+        const base = shapeStyle(value)
+        const keep = {}
+        ;['background', 'color', 'borderColor', 'fontSize', 'borderWidth'].forEach((k) => {
+          if (n.style?.[k]) keep[k] = n.style[k]
+        })
+        // 이전 모양의 기본 배경을 그대로 쓰고 있었다면 새 모양의 기본 배경을 따른다
+        if (keep.background === shapeStyle(n.data?.shape || 'rect').background) {
+          delete keep.background
+        }
+        return { ...n, data: { ...n.data, shape: value }, style: { ...base, ...keep } }
+      }
+      return { ...n, style: { ...n.style, [key]: value } }
+    }
+    setNodes((nds) => nds.map((n) => (n.id === selectedNode.id ? apply(n) : n)))
+    setSelectedNode((prev) => apply(prev))
   }
 
   const addNodeIdRef = useRef(0)
