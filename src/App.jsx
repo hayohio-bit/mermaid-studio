@@ -6,6 +6,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mermaid from 'mermaid'
+import { flowToMermaid } from './flowToMermaid'
 
 mermaid.initialize({ startOnLoad: false })
 
@@ -579,9 +580,14 @@ export default function App() {
   // 코드를 고치면 600ms 뒤에 자동으로 다시 렌더링한다.
   // 첫 마운트(localStorage 복원 직후)에는 실행하지 않는다 — 복원된 노드 스타일을 덮어쓰면 안 되기 때문이다.
   const isFirstCodeEffect = useRef(true)
+  const skipAutoRenderRef = useRef(false)
   useEffect(() => {
     if (isFirstCodeEffect.current) {
       isFirstCodeEffect.current = false
+      return
+    }
+    if (skipAutoRenderRef.current) {
+      skipAutoRenderRef.current = false
       return
     }
     const timer = setTimeout(renderDiagram, 600)
@@ -589,6 +595,18 @@ export default function App() {
     // renderDiagram은 매 렌더마다 새로 만들어지므로 code만 의존성으로 둔다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code])
+
+  // 캔버스 → 코드 역변환. 자동 렌더링이 이어서 실행되면 캔버스의 위치·스타일이
+  // mermaid 레이아웃으로 초기화되므로, 이 setCode 한 번은 자동 렌더링을 건너뛴다.
+  const exportToCode = () => {
+    if (nodes.length === 0) {
+      setStatus({ type: 'info', message: '내보낼 노드가 없습니다. 먼저 다이어그램을 만들어 주세요.' })
+      return
+    }
+    skipAutoRenderRef.current = true
+    setCode(flowToMermaid(nodes, edges))
+    setStatus(null)
+  }
 
   const exportToPng = useCallback(() => {
   const flowEl = document.querySelector('.react-flow')
@@ -677,6 +695,22 @@ export default function App() {
           }}
         >
           노드 추가
+        </button>
+
+        <button
+          onClick={exportToCode}
+          style={{
+            padding: '10px',
+            background: 'white',
+            color: '#374151',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+          }}
+        >
+          캔버스 → 코드
         </button>
 
         <button
