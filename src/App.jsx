@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import {
   ReactFlow, Background, Controls, MiniMap, ReactFlowProvider,
-  applyNodeChanges, applyEdgeChanges, addEdge, MarkerType, useReactFlow
+  applyNodeChanges, applyEdgeChanges, addEdge, reconnectEdge, MarkerType, useReactFlow
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mermaid from 'mermaid'
@@ -1013,6 +1013,16 @@ function Studio() {
     },
     [record]
   )
+  // 엣지 끝을 잡아 다른 노드로 끌면 연결 대상이 바뀐다.
+  // shouldReplaceId를 꺼서 엣지 id를 유지한다 — id가 바뀌면 열려 있는 엣지 편집 패널의 대상이 사라진다.
+  const onReconnect = useCallback((oldEdge, newConnection) => {
+    record()
+    setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds, { shouldReplaceId: false }))
+    setSelectedEdge((prev) =>
+      prev?.id === oldEdge.id ? { ...prev, ...newConnection } : prev
+    )
+  }, [record])
+
   const onNodeClick = useCallback((event, node) => {
     // 그룹(subgraph) 노드는 노드 편집 패널의 대상이 아니다
     if (node.type === 'labeledGroup') return
@@ -1104,6 +1114,104 @@ function Studio() {
     setEdges((eds) => eds.filter((e) => !ids.has(e.source) && !ids.has(e.target)))
     setSelectedNode(null)
   }
+
+  // ---- 노드 복사·붙여넣기 ----
+  // 시스템 클립보드가 아니라 앱 내부 ref에 담는다. 다른 앱과 주고받을 필요가 없고,
+  // 클립보드 권한·직렬화 문제를 겪지 않는다.
+  const clipboardRef = useRef(null)
+  const pasteCountRef = useRef(0)
+
+  const copySelection = useCallback(() => {
+    const { nodes: curNodes, edges: curEdges } = stateRef.current
+    const picked = curNodes.filter((n) => n.selected)
+    if (picked.length === 0) return
+    const ids = new Set(picked.map((n) => n.id))
+    clipboardRef.current = {
+      nodes: picked,
+      // 양쪽 끝이 모두 복사 대상인 엣지만 함께 복사한다
+      edges: curEdges.filter((e) => ids.has(e.source) && ids.has(e.target)),
+    }
+    pasteCountRef.current = 0
+    setStatus({ type: 'info', message: `노드 ${picked.length}개를 복사했습니다. Ctrl+V로 붙여넣을 수 있습니다.` })
+  }, [])
+
+  const pasteClipboard = useCallback(() => {
+    const clip = clipboardRef.current
+    if (!clip || clip.nodes.length === 0) return
+    record()
+    const offset = 40 * (pasteCountRef.current + 1)
+    pasteCountRef.current += 1
+
+    const { nodes: curNodes } = stateRef.current
+    const existing = new Set(curNodes.map((n) => n.id))
+    const idMap = new Map()
+    const newId = () => {
+      let id
+      do {
+        id = `n${++addNodeIdRef.current}`
+      } while (existing.has(id) || idMap.has(id))
+      existing.add(id)
+      return id
+    }
+    clip.nodes.forEach((n) => idMap.set(n.id, newId()))
+
+    const copiedNodes = clip.nodes.map((n) => {
+      const parentCopied = n.parentId && idMap.has(n.parentId)
+      // 부모 그룹을 함께 복사하지 않았다면 부모 기준 상대 좌표를 절대 좌표로 되돌린다
+      const parentPos = !parentCopied && n.parentId
+        ? clip.nodes.find((p) => p.id === n.parentId)?.position ??
+          curNodes.find((p) => p.id === n.parentId)?.position
+        : null
+      const base = parentPos
+        ? { x: n.position.x + parentPos.x, y: n.position.y + parentPos.y }
+        : n.position
+      const copy = {
+        ...n,
+        id: idMap.get(n.id),
+        position: { x: base.x + offset, y: base.y + offset },
+        selected: true,
+      }
+      if (parentCopied) {
+        copy.parentId = idMap.get(n.parentId)
+      } else {
+        delete copy.parentId
+        delete copy.extent
+      }
+      return copy
+    })
+
+    const copiedEdges = clip.edges.map((e, i) => ({
+      ...e,
+      id: `e-copy-${addNodeIdRef.current}-${i}`,
+      source: idMap.get(e.source),
+      target: idMap.get(e.target),
+      selected: false,
+    }))
+
+    // 원본 선택을 해제해서 붙여넣은 노드만 선택된 상태로 만든다
+    setNodes((nds) => [...nds.map((n) => (n.selected ? { ...n, selected: false } : n)), ...copiedNodes])
+    setEdges((eds) => [...eds, ...copiedEdges])
+    setSelectedNode(null)
+    setSelectedEdge(null)
+    setStatus({ type: 'info', message: `노드 ${copiedNodes.length}개를 붙여넣었습니다.` })
+  }, [record])
+
+  // 텍스트 입력 중에는 브라우저의 기본 복사·붙여넣기를 그대로 둔다
+  useEffect(() => {
+    const onKey = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return
+      if (!(e.ctrlKey || e.metaKey)) return
+      const key = e.key.toLowerCase()
+      if (key === 'c') {
+        copySelection()
+      } else if (key === 'v') {
+        e.preventDefault()
+        pasteClipboard()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [copySelection, pasteClipboard])
 
   const deleteSelectedEdge = () => {
     record()
@@ -1393,6 +1501,10 @@ function Studio() {
           노드 추가
         </button>
 
+        <p style={{ margin: 0, fontSize: '11px', color: T.subText, lineHeight: 1.6 }}>
+          선택한 노드는 Ctrl+C·Ctrl+V로 복사할 수 있고, 엣지의 끝점을 드래그하면 연결 대상을 바꿀 수 있습니다.
+        </p>
+
         <button
           onClick={exportToCode}
           style={{
@@ -1525,6 +1637,8 @@ function Studio() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onReconnect={onReconnect}
+          reconnectRadius={12}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
           onNodeDragStart={record}
