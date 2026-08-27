@@ -2,7 +2,7 @@ import { useRef, useState, useCallback } from 'react'
 import { toPng } from 'html-to-image'
 import {
   ReactFlow, Background, Controls, MiniMap,
-  applyNodeChanges, applyEdgeChanges
+  applyNodeChanges, applyEdgeChanges, addEdge
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mermaid from 'mermaid'
@@ -69,7 +69,7 @@ function svgToFlow(svgEl) {
 }
 
 // 사이드패널 컴포넌트
-function SidePanel({ node, onChange, onClose }) {
+function SidePanel({ node, onChange, onClose, onDelete }) {
   if (!node) return null
 
   const style = node.style || {}
@@ -184,9 +184,23 @@ function SidePanel({ node, onChange, onClose }) {
       </div>
 
       <button
-        onClick={onClose}
+        onClick={onDelete}
         style={{
           marginTop: 'auto',
+          padding: '8px',
+          border: '1px solid #fca5a5',
+          borderRadius: '6px',
+          background: '#fef2f2',
+          color: '#dc2626',
+          cursor: 'pointer',
+          fontSize: '13px',
+        }}
+      >
+        노드 삭제
+      </button>
+      <button
+        onClick={onClose}
+        style={{
           padding: '8px',
           border: '1px solid #ddd',
           borderRadius: '6px',
@@ -202,7 +216,7 @@ function SidePanel({ node, onChange, onClose }) {
 }
 
 // 엣지 편집 사이드패널
-function EdgePanel({ edge, onChange, onClose }) {
+function EdgePanel({ edge, onChange, onClose, onDelete }) {
   if (!edge) return null
 
   const style = edge.style || {}
@@ -274,9 +288,23 @@ function EdgePanel({ edge, onChange, onClose }) {
       </label>
 
       <button
-        onClick={onClose}
+        onClick={onDelete}
         style={{
           marginTop: 'auto',
+          padding: '8px',
+          border: '1px solid #fca5a5',
+          borderRadius: '6px',
+          background: '#fef2f2',
+          color: '#dc2626',
+          cursor: 'pointer',
+          fontSize: '13px',
+        }}
+      >
+        엣지 삭제
+      </button>
+      <button
+        onClick={onClose}
+        style={{
           padding: '8px',
           border: '1px solid #ddd',
           borderRadius: '6px',
@@ -299,12 +327,31 @@ export default function App() {
   const [selectedEdge, setSelectedEdge] = useState(null)
   const mermaidRef = useRef(null)
 
-  const onNodesChange = useCallback(
-    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  )
-  const onEdgesChange = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+  const onNodesChange = useCallback((changes) => {
+    setNodes((nds) => applyNodeChanges(changes, nds))
+    // 키보드 삭제 등으로 노드가 제거되면 열려 있던 편집 패널을 닫는다
+    changes.forEach((c) => {
+      if (c.type === 'remove') {
+        setSelectedNode((prev) => (prev?.id === c.id ? null : prev))
+      }
+    })
+  }, [])
+  const onEdgesChange = useCallback((changes) => {
+    setEdges((eds) => applyEdgeChanges(changes, eds))
+    changes.forEach((c) => {
+      if (c.type === 'remove') {
+        setSelectedEdge((prev) => (prev?.id === c.id ? null : prev))
+      }
+    })
+  }, [])
+  const onConnect = useCallback(
+    (connection) =>
+      setEdges((eds) =>
+        addEdge(
+          { ...connection, style: { stroke: '#9ca3af', strokeWidth: 1.5 }, labelStyle: { fontSize: '12px' } },
+          eds
+        )
+      ),
     []
   )
   const onNodeClick = useCallback((event, node) => {
@@ -332,6 +379,41 @@ export default function App() {
       }
       return { ...prev, style: { ...prev.style, [key]: value } }
     })
+  }
+
+  const addNodeIdRef = useRef(0)
+  const addNode = () => {
+    let id
+    do {
+      id = `n${++addNodeIdRef.current}`
+    } while (nodes.some((n) => n.id === id))
+    const offset = addNodeIdRef.current
+    setNodes((nds) => [
+      ...nds,
+      {
+        id,
+        position: { x: 60 + (offset % 5) * 30, y: 60 + (offset % 5) * 30 },
+        data: { label: '새 노드' },
+        style: {
+          background: '#ffffff',
+          border: '1px solid #d1d5db',
+          borderRadius: '6px',
+          padding: '8px 16px',
+          fontSize: '14px',
+        },
+      },
+    ])
+  }
+
+  const deleteSelectedNode = () => {
+    setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
+    setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id))
+    setSelectedNode(null)
+  }
+
+  const deleteSelectedEdge = () => {
+    setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id))
+    setSelectedEdge(null)
   }
 
   const onEdgePanelChange = (key, value) => {
@@ -422,6 +504,22 @@ export default function App() {
         </button>
 
         <button
+          onClick={addNode}
+          style={{
+            padding: '10px',
+            background: 'white',
+            color: '#374151',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+          }}
+        >
+          노드 추가
+        </button>
+
+        <button
   onClick={exportToPng}
   style={{
     padding: '10px',
@@ -445,8 +543,10 @@ export default function App() {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
+          deleteKeyCode={['Backspace', 'Delete']}
           fitView
         >
           <Background />
@@ -460,11 +560,13 @@ export default function App() {
         node={selectedNode}
         onChange={onPanelChange}
         onClose={() => setSelectedNode(null)}
+        onDelete={deleteSelectedNode}
       />
       <EdgePanel
         edge={selectedEdge}
         onChange={onEdgePanelChange}
         onClose={() => setSelectedEdge(null)}
+        onDelete={deleteSelectedEdge}
       />
 
       {/* mermaid 숨김 렌더링 영역 */}
