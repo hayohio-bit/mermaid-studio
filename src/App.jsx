@@ -495,6 +495,27 @@ function EdgePanel({ edge, onChange, onClose, onDelete, T }) {
         />
       </div>
 
+      {/* 선 모양 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <label style={{ fontSize: '12px', color: T.subText }}>선 모양</label>
+        <select
+          value={edge.type || 'default'}
+          onChange={(e) => onChange('type', e.target.value)}
+          style={{
+            padding: '6px 8px',
+            border: `1px solid ${T.border}`,
+            borderRadius: '6px',
+            fontSize: '13px',
+            background: T.inputBg,
+            color: T.text,
+          }}
+        >
+          <option value="default">곡선</option>
+          <option value="smoothstep">계단</option>
+          <option value="straight">직선</option>
+        </select>
+      </div>
+
       {/* 선 색상 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <label style={{ fontSize: '12px', color: T.subText }}>선 색상</label>
@@ -812,6 +833,9 @@ function Studio() {
       }
       if (key === 'animated') {
         return { ...e, animated: value }
+      }
+      if (key === 'type') {
+        return { ...e, type: value }
       }
       if (key === 'stroke') {
         // 화살촉 색도 선 색과 함께 바꾼다
