@@ -45,15 +45,22 @@ function svgToFlow(svgEl) {
     })
   })
 
+  // 엣지 라벨은 .edgeLabels 안에 엣지와 같은 순서로 렌더링되므로 인덱스로 대응시킨다.
+  // .edgeLabel 클래스가 안쪽 span에도 중복으로 붙어 있어서 직계 자식(g)만 선택한다.
+  const labelEls = svgEl.querySelectorAll('.edgeLabels > .edgeLabel')
   const edgeEls = svgEl.querySelectorAll('.flowchart-link')
   edgeEls.forEach((el, i) => {
     const edgeId = el.id || `edge-${i}`
     const match = edgeId.match(/L_([^_]+)_([^_]+)_\d+/)
     if (match) {
+      const label = labelEls[i]?.textContent.trim() || ''
       edges.push({
-        id: `e-${match[1]}-${match[2]}`,
+        id: `e-${match[1]}-${match[2]}-${i}`,
         source: match[1],
         target: match[2],
+        label: label || undefined,
+        style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+        labelStyle: { fontSize: '12px' },
       })
     }
   })
@@ -194,11 +201,102 @@ function SidePanel({ node, onChange, onClose }) {
   )
 }
 
+// 엣지 편집 사이드패널
+function EdgePanel({ edge, onChange, onClose }) {
+  if (!edge) return null
+
+  const style = edge.style || {}
+
+  return (
+    <div style={{
+      width: '260px',
+      padding: '20px',
+      borderLeft: '1px solid #eee',
+      background: '#fafafa',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '16px',
+      overflowY: 'auto',
+    }}>
+      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>엣지 편집</h3>
+
+      {/* 라벨 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <label style={{ fontSize: '12px', color: '#666' }}>라벨</label>
+        <input
+          value={edge.label || ''}
+          onChange={(e) => onChange('label', e.target.value)}
+          style={{
+            padding: '6px 8px',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            fontSize: '14px',
+          }}
+        />
+      </div>
+
+      {/* 선 색상 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <label style={{ fontSize: '12px', color: '#666' }}>선 색상</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input
+            type="color"
+            value={style.stroke || '#9ca3af'}
+            onChange={(e) => onChange('stroke', e.target.value)}
+            style={{ width: '36px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
+          />
+          <span style={{ fontSize: '13px', color: '#888' }}>{style.stroke || '#9ca3af'}</span>
+        </div>
+      </div>
+
+      {/* 선 굵기 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <label style={{ fontSize: '12px', color: '#666' }}>선 굵기: {style.strokeWidth || 1.5}px</label>
+        <input
+          type="range"
+          min="1"
+          max="6"
+          step="0.5"
+          value={parseFloat(style.strokeWidth) || 1.5}
+          onChange={(e) => onChange('strokeWidth', Number(e.target.value))}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      {/* 애니메이션 */}
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#444', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={!!edge.animated}
+          onChange={(e) => onChange('animated', e.target.checked)}
+        />
+        흐름 애니메이션
+      </label>
+
+      <button
+        onClick={onClose}
+        style={{
+          marginTop: 'auto',
+          padding: '8px',
+          border: '1px solid #ddd',
+          borderRadius: '6px',
+          background: 'white',
+          cursor: 'pointer',
+          fontSize: '13px',
+        }}
+      >
+        닫기
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   const [code, setCode] = useState(defaultCode)
   const [nodes, setNodes] = useState([])
   const [edges, setEdges] = useState([])
   const [selectedNode, setSelectedNode] = useState(null)
+  const [selectedEdge, setSelectedEdge] = useState(null)
   const mermaidRef = useRef(null)
 
   const onNodesChange = useCallback(
@@ -211,6 +309,11 @@ export default function App() {
   )
   const onNodeClick = useCallback((event, node) => {
     setSelectedNode(node)
+    setSelectedEdge(null)
+  }, [])
+  const onEdgeClick = useCallback((event, edge) => {
+    setSelectedEdge(edge)
+    setSelectedNode(null)
   }, [])
 
   const onPanelChange = (key, value) => {
@@ -231,6 +334,17 @@ export default function App() {
     })
   }
 
+  const onEdgePanelChange = (key, value) => {
+    const apply = (e) => {
+      if (key === 'label' || key === 'animated') {
+        return { ...e, [key]: value }
+      }
+      return { ...e, style: { ...e.style, [key]: value } }
+    }
+    setEdges((eds) => eds.map((e) => (e.id === selectedEdge.id ? apply(e) : e)))
+    setSelectedEdge((prev) => apply(prev))
+  }
+
   const renderDiagram = async () => {
     if (!mermaidRef.current) return
     try {
@@ -243,6 +357,7 @@ export default function App() {
       setNodes(newNodes)
       setEdges(newEdges)
       setSelectedNode(null)
+      setSelectedEdge(null)
     } catch (e) {
       console.log('렌더링 에러:', e)
     }
@@ -331,6 +446,7 @@ export default function App() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
           fitView
         >
           <Background />
@@ -344,6 +460,11 @@ export default function App() {
         node={selectedNode}
         onChange={onPanelChange}
         onClose={() => setSelectedNode(null)}
+      />
+      <EdgePanel
+        edge={selectedEdge}
+        onChange={onEdgePanelChange}
+        onClose={() => setSelectedEdge(null)}
       />
 
       {/* mermaid 숨김 렌더링 영역 */}
