@@ -57,6 +57,26 @@ function detectShape(el) {
   return 'rect'
 }
 
+// 파서 DB의 vertex type → 캔버스 shape 매핑.
+// cylinder·ellipse·doublecircle 등 표현이 어려운 모양은 가장 가까운 모양으로 근사한다.
+const vertexTypeToShape = {
+  square: 'rect',
+  round: 'round',
+  stadium: 'stadium',
+  circle: 'circle',
+  doublecircle: 'circle',
+  ellipse: 'circle',
+  diamond: 'diamond',
+  hexagon: 'hexagon',
+  subroutine: 'subroutine',
+  cylinder: 'round',
+  lean_right: 'lean_right',
+  lean_left: 'lean_left',
+  trapezoid: 'trapezoid',
+  inv_trapezoid: 'inv_trapezoid',
+  odd: 'rect',
+}
+
 // 모양별 노드 스타일. 마름모는 CSS 테두리로 표현할 수 없어 clip-path를 쓰고 테두리를 생략한다
 function shapeStyle(shape) {
   const base = {
@@ -83,6 +103,58 @@ function shapeStyle(shape) {
         background: '#e5e7eb',
         clipPath: 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)',
       }
+    case 'hexagon':
+      return {
+        ...base,
+        border: 'none',
+        borderRadius: 0,
+        padding: '12px 28px',
+        background: '#e5e7eb',
+        clipPath: 'polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%)',
+      }
+    case 'subroutine':
+      return {
+        ...base,
+        borderLeft: '4px double #d1d5db',
+        borderRight: '4px double #d1d5db',
+        borderRadius: 0,
+      }
+    case 'lean_right':
+      return {
+        ...base,
+        border: 'none',
+        borderRadius: 0,
+        padding: '10px 26px',
+        background: '#e5e7eb',
+        clipPath: 'polygon(15% 0, 100% 0, 85% 100%, 0 100%)',
+      }
+    case 'lean_left':
+      return {
+        ...base,
+        border: 'none',
+        borderRadius: 0,
+        padding: '10px 26px',
+        background: '#e5e7eb',
+        clipPath: 'polygon(0 0, 85% 0, 100% 100%, 15% 100%)',
+      }
+    case 'trapezoid':
+      return {
+        ...base,
+        border: 'none',
+        borderRadius: 0,
+        padding: '10px 26px',
+        background: '#e5e7eb',
+        clipPath: 'polygon(15% 0, 85% 0, 100% 100%, 0 100%)',
+      }
+    case 'inv_trapezoid':
+      return {
+        ...base,
+        border: 'none',
+        borderRadius: 0,
+        padding: '10px 26px',
+        background: '#e5e7eb',
+        clipPath: 'polygon(0 0, 100% 0, 85% 100%, 15% 100%)',
+      }
     default:
       return base
   }
@@ -90,7 +162,7 @@ function shapeStyle(shape) {
 
 const GROUP_PREFIX = 'sub-'
 
-function svgToFlow(svgEl, dbEdges, subGraphs = []) {
+function svgToFlow(svgEl, dbEdges, subGraphs = [], vertices = null) {
   const nodes = []
   const svgRect = svgEl.getBoundingClientRect()
 
@@ -127,7 +199,9 @@ function svgToFlow(svgEl, dbEdges, subGraphs = []) {
     const rawId = el.id
     const idMatch = rawId.match(/^flowchart-(.+)-\d+$/)
     const nodeId = idMatch ? idMatch[1] : rawId
-    const shape = detectShape(el)
+    // 모양은 파서 DB의 vertex type이 정확하다. 없을 때만 SVG 도형으로 추정한다.
+    const vertexType = vertices?.get(nodeId)?.type
+    const shape = (vertexType && vertexTypeToShape[vertexType]) || detectShape(el)
 
     const parentId = parentOf.get(nodeId)
     const abs = { x: rect.left - svgRect.left, y: rect.top - svgRect.top }
@@ -473,6 +547,12 @@ function SidePanel({ node, onChange, onClose, onDelete, T }) {
           <option value="stadium">스타디움 ([ ])</option>
           <option value="circle">원 (( ))</option>
           <option value="diamond">마름모 {'{ }'}</option>
+          <option value="hexagon">육각형 {'{{ }}'}</option>
+          <option value="subroutine">서브루틴 [[ ]]</option>
+          <option value="lean_right">평행사변형 [/ /]</option>
+          <option value="lean_left">평행사변형(역) [\ \]</option>
+          <option value="trapezoid">사다리꼴 [/ \]</option>
+          <option value="inv_trapezoid">사다리꼴(역) [\ /]</option>
         </select>
       </div>
 
@@ -1067,7 +1147,7 @@ function Studio() {
       let result
       let notice = null
       if (diagram.type.startsWith('flowchart')) {
-        result = svgToFlow(svgEl, diagram.db.getEdges(), diagram.db.getSubGraphs())
+        result = svgToFlow(svgEl, diagram.db.getEdges(), diagram.db.getSubGraphs(), diagram.db.getVertices())
       } else if (diagram.type.toLowerCase().startsWith('class')) {
         result = classSvgToFlow(svgEl, diagram.db.getRelations())
       } else if (diagram.type === 'sequence') {

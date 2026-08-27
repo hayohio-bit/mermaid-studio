@@ -14,12 +14,19 @@ export function flowToMermaid(nodes, edges) {
     stadium: ['(["', '"])'],
     circle: ['(("', '"))'],
     diamond: ['{"', '"}'],
+    hexagon: ['{{"', '"}}'],
+    subroutine: ['[["', '"]]'],
+    lean_right: ['[/"', '"/]'],
+    lean_left: ['[\\"', '"\\]'],
+    trapezoid: ['[/"', '"\\]'],
+    inv_trapezoid: ['[\\"', '"/]'],
   }
 
-  // 라벨의 큰따옴표는 mermaid 문법과 충돌하므로 작은따옴표로 바꾼다
+  // 라벨의 큰따옴표는 작은따옴표로 바꾸고, 백슬래시는 mermaid 문법과 충돌하므로 제거한다
   const nodeRef = (n) => {
     const [open, close] = wrappers[n.data?.shape] || wrappers.rect
-    return `${n.id}${open}${(n.data?.label || n.id).replace(/"/g, "'")}${close}`
+    const label = (n.data?.label || n.id).replace(/"/g, "'").replace(/\\/g, '')
+    return `${n.id}${open}${label}${close}`
   }
 
   // 노드 정의를 전부 먼저 내보낸다: subgraph 소속 노드는 블록 안에, 나머지는 밖에.
@@ -52,8 +59,16 @@ export function flowToMermaid(nodes, edges) {
   })
 
   // 기본값에서 바뀐 노드 스타일은 style 지시문으로 내보낸다.
-  // 마름모는 변환기가 회색 배경을 기본으로 주므로 그 값은 사용자 변경으로 치지 않는다.
-  const defaultBg = { diamond: '#e5e7eb' }
+  // clip-path로 그리는 모양들은 변환기가 회색 배경을 기본으로 주므로 사용자 변경으로 치지 않는다.
+  const grayBg = '#e5e7eb'
+  const defaultBg = {
+    diamond: grayBg,
+    hexagon: grayBg,
+    lean_right: grayBg,
+    lean_left: grayBg,
+    trapezoid: grayBg,
+    inv_trapezoid: grayBg,
+  }
   plainNodes.forEach((n) => {
     const st = n.style || {}
     const parts = []
