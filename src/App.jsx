@@ -754,7 +754,7 @@ function Studio() {
     setSelectedNode((prev) => apply(prev))
   }
 
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, getNodesBounds } = useReactFlow()
 
   const addNodeIdRef = useRef(0)
   const addNodeAt = (position) => {
@@ -911,21 +911,33 @@ function Studio() {
     link.click()
   }
 
-  const exportToPng = useCallback(() => {
-    const flowEl = document.querySelector('.react-flow')
-    if (!flowEl) return
-    toPng(flowEl, { backgroundColor: '#ffffff', quality: 1 }).then((dataUrl) =>
-      downloadDataUrl(dataUrl, 'mermaid-studio.png')
-    )
-  }, [])
+  // 현재 화면이 아니라 노드 전체 경계를 기준으로 캡처한다.
+  // 뷰포트 요소만 찍으므로 미니맵·컨트롤은 이미지에 포함되지 않는다.
+  const exportImage = (render, filename) => {
+    if (nodes.length === 0) {
+      setStatus({ type: 'info', message: '내보낼 노드가 없습니다. 먼저 다이어그램을 만들어 주세요.' })
+      return
+    }
+    const viewportEl = document.querySelector('.react-flow__viewport')
+    if (!viewportEl) return
+    const bounds = getNodesBounds(nodes)
+    const pad = 40
+    const width = Math.ceil(bounds.width + pad * 2)
+    const height = Math.ceil(bounds.height + pad * 2)
+    render(viewportEl, {
+      backgroundColor: dark ? '#141414' : '#ffffff',
+      width,
+      height,
+      style: {
+        width: `${width}px`,
+        height: `${height}px`,
+        transform: `translate(${pad - bounds.x}px, ${pad - bounds.y}px) scale(1)`,
+      },
+    }).then((dataUrl) => downloadDataUrl(dataUrl, filename))
+  }
 
-  const exportToSvg = useCallback(() => {
-    const flowEl = document.querySelector('.react-flow')
-    if (!flowEl) return
-    toSvg(flowEl, { backgroundColor: '#ffffff' }).then((dataUrl) =>
-      downloadDataUrl(dataUrl, 'mermaid-studio.svg')
-    )
-  }, [])
+  const exportToPng = () => exportImage(toPng, 'mermaid-studio.png')
+  const exportToSvg = () => exportImage(toSvg, 'mermaid-studio.svg')
 
   // ---- JSON 파일 저장·불러오기 ----
   const exportToJson = () => {
