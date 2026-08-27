@@ -1,8 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import {
-  ReactFlow, Background, Controls, MiniMap,
-  applyNodeChanges, applyEdgeChanges, addEdge, MarkerType
+  ReactFlow, Background, Controls, MiniMap, ReactFlowProvider,
+  applyNodeChanges, applyEdgeChanges, addEdge, MarkerType, useReactFlow
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mermaid from 'mermaid'
@@ -539,7 +539,7 @@ function EdgePanel({ edge, onChange, onClose, onDelete }) {
   )
 }
 
-export default function App() {
+function Studio() {
   const [code, setCode] = useState(() => loadSaved()?.code ?? defaultCode)
   const [nodes, setNodes] = useState(() => loadSaved()?.nodes ?? [])
   const [edges, setEdges] = useState(() => loadSaved()?.edges ?? [])
@@ -635,22 +635,34 @@ export default function App() {
     setSelectedNode((prev) => apply(prev))
   }
 
+  const { screenToFlowPosition } = useReactFlow()
+
   const addNodeIdRef = useRef(0)
-  const addNode = () => {
+  const addNodeAt = (position) => {
     let id
     do {
       id = `n${++addNodeIdRef.current}`
     } while (nodes.some((n) => n.id === id))
-    const offset = addNodeIdRef.current
     setNodes((nds) => [
       ...nds,
       {
         id,
-        position: { x: 60 + (offset % 5) * 30, y: 60 + (offset % 5) * 30 },
+        position,
         data: { label: '새 노드', shape: 'rect' },
         style: shapeStyle('rect'),
       },
     ])
+  }
+
+  const addNode = () => {
+    const offset = (addNodeIdRef.current + 1) % 5
+    addNodeAt({ x: 60 + offset * 30, y: 60 + offset * 30 })
+  }
+
+  // 캔버스 빈 곳을 더블클릭하면 그 자리에 노드를 만든다
+  const onCanvasDoubleClick = (event) => {
+    if (!event.target.classList?.contains('react-flow__pane')) return
+    addNodeAt(screenToFlowPosition({ x: event.clientX, y: event.clientY }))
   }
 
   const deleteSelectedNode = () => {
@@ -930,7 +942,7 @@ export default function App() {
       </div>
 
       {/* 가운데: React Flow */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1 }} onDoubleClick={onCanvasDoubleClick}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -941,6 +953,7 @@ export default function App() {
           onEdgeClick={onEdgeClick}
           deleteKeyCode={['Backspace', 'Delete']}
           multiSelectionKeyCode={['Meta', 'Control']}
+          zoomOnDoubleClick={false}
           fitView
         >
           <Background />
@@ -977,5 +990,14 @@ export default function App() {
         style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none' }}
       />
     </div>
+  )
+}
+
+// useReactFlow 훅(screenToFlowPosition)을 쓰려면 Provider 안에 있어야 한다
+export default function App() {
+  return (
+    <ReactFlowProvider>
+      <Studio />
+    </ReactFlowProvider>
   )
 }
