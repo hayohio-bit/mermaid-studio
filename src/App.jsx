@@ -340,6 +340,76 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
   )
 }
 
+// 여러 노드를 선택했을 때의 일괄 편집 패널
+function BulkPanel({ nodes, onChange, onDelete }) {
+  const first = nodes[0]
+  const style = first.style || {}
+
+  const colorRow = (label, key, fallback) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <label style={{ fontSize: '12px', color: '#666' }}>{label}</label>
+      <input
+        type="color"
+        value={style[key] || fallback}
+        onChange={(e) => onChange(key, e.target.value)}
+        style={{ width: '36px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
+      />
+    </div>
+  )
+
+  return (
+    <div style={{
+      width: '260px',
+      padding: '20px',
+      borderLeft: '1px solid #eee',
+      background: '#fafafa',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '16px',
+      overflowY: 'auto',
+    }}>
+      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>
+        일괄 편집 ({nodes.length}개 노드)
+      </h3>
+
+      {colorRow('배경색', 'background', '#ffffff')}
+      {colorRow('텍스트 색상', 'color', '#000000')}
+      {colorRow('테두리 색상', 'borderColor', '#d1d5db')}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <label style={{ fontSize: '12px', color: '#666' }}>폰트 크기: {style.fontSize || '14px'}</label>
+        <input
+          type="range"
+          min="10"
+          max="24"
+          value={parseInt(style.fontSize) || 14}
+          onChange={(e) => onChange('fontSize', `${e.target.value}px`)}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      <button
+        onClick={onDelete}
+        style={{
+          marginTop: 'auto',
+          padding: '8px',
+          border: '1px solid #fca5a5',
+          borderRadius: '6px',
+          background: '#fef2f2',
+          color: '#dc2626',
+          cursor: 'pointer',
+          fontSize: '13px',
+        }}
+      >
+        선택한 노드 모두 삭제
+      </button>
+      <p style={{ margin: 0, fontSize: '11px', color: '#999', lineHeight: 1.5 }}>
+        Shift+드래그 또는 Ctrl+클릭으로 여러 노드를 선택할 수 있습니다.
+      </p>
+    </div>
+  )
+}
+
 // 엣지 편집 사이드패널
 function EdgePanel({ edge, onChange, onClose, onDelete }) {
   if (!edge) return null
@@ -554,6 +624,22 @@ export default function App() {
   const deleteSelectedNode = () => {
     setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
     setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id))
+    setSelectedNode(null)
+  }
+
+  // 다중 선택된 노드 (React Flow가 selected 플래그를 관리한다)
+  const multiSelectedNodes = nodes.filter((n) => n.selected)
+
+  const onBulkChange = (key, value) => {
+    setNodes((nds) =>
+      nds.map((n) => (n.selected ? { ...n, style: { ...n.style, [key]: value } } : n))
+    )
+  }
+
+  const deleteBulkNodes = () => {
+    const ids = new Set(multiSelectedNodes.map((n) => n.id))
+    setNodes((nds) => nds.filter((n) => !ids.has(n.id)))
+    setEdges((eds) => eds.filter((e) => !ids.has(e.source) && !ids.has(e.target)))
     setSelectedNode(null)
   }
 
@@ -826,12 +912,20 @@ export default function App() {
       </div>
 
       {/* 오른쪽: 사이드패널 */}
-      <SidePanel
-        node={selectedNode}
-        onChange={onPanelChange}
-        onClose={() => setSelectedNode(null)}
-        onDelete={deleteSelectedNode}
-      />
+      {multiSelectedNodes.length > 1 ? (
+        <BulkPanel
+          nodes={multiSelectedNodes}
+          onChange={onBulkChange}
+          onDelete={deleteBulkNodes}
+        />
+      ) : (
+        <SidePanel
+          node={selectedNode}
+          onChange={onPanelChange}
+          onClose={() => setSelectedNode(null)}
+          onDelete={deleteSelectedNode}
+        />
+      )}
       <EdgePanel
         edge={selectedEdge}
         onChange={onEdgePanelChange}
