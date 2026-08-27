@@ -35,11 +35,14 @@ export function flowToMermaid(nodes, edges) {
     if (!connected.has(n.id)) lines.push(`  ${nodeRef(n)}`)
   })
 
-  // 기본값에서 바뀐 노드 스타일은 style 지시문으로 내보낸다
+  // 기본값에서 바뀐 노드 스타일은 style 지시문으로 내보낸다.
+  // 마름모는 변환기가 회색 배경을 기본으로 주므로 그 값은 사용자 변경으로 치지 않는다.
+  const defaultBg = { diamond: '#e5e7eb' }
   nodes.forEach((n) => {
     const st = n.style || {}
     const parts = []
-    if (st.background && st.background !== '#ffffff') parts.push(`fill:${st.background}`)
+    const baseBg = defaultBg[n.data?.shape] || '#ffffff'
+    if (st.background && st.background !== baseBg) parts.push(`fill:${st.background}`)
     if (st.borderColor && st.borderColor !== '#d1d5db') parts.push(`stroke:${st.borderColor}`)
     if (st.color && st.color !== '#000000') parts.push(`color:${st.color}`)
     if (st.borderWidth && st.borderWidth !== '1px') parts.push(`stroke-width:${st.borderWidth}`)

@@ -23,18 +23,19 @@ function loadSaved() {
   }
 }
 
-// mermaid SVG의 도형 요소로 노드 모양을 판별한다
+// mermaid SVG의 도형 요소로 노드 모양을 판별한다.
+// 도형 본체는 label-container 클래스가 붙은 요소이고, 라벨 배경용 민무늬 rect가 따로 있으므로
+// rect는 반드시 label-container만 검사한다. 스타디움은 rect가 아니라 path로 그려진다.
 function detectShape(el) {
   if (el.querySelector('polygon')) return 'diamond' // {마름모}
   if (el.querySelector('circle')) return 'circle' // ((원))
-  const rect = el.querySelector('rect')
+  const rect = el.querySelector('rect.label-container, rect.basic')
   if (rect) {
     const rx = parseFloat(rect.getAttribute('rx') || '0')
-    const height = parseFloat(rect.getAttribute('height') || '0')
-    if (rx > 0 && height > 0 && rx >= height / 2) return 'stadium' // ([스타디움])
-    if (rx > 0) return 'round' // (둥근 사각형)
+    return rx > 0 ? 'round' : 'rect' // (둥근 사각형) / [사각형]
   }
-  return 'rect' // [사각형]
+  if (el.querySelector('path')) return 'stadium' // ([스타디움])
+  return 'rect'
 }
 
 // 모양별 노드 스타일. 마름모는 CSS 테두리로 표현할 수 없어 clip-path를 쓰고 테두리를 생략한다
@@ -903,6 +904,7 @@ export default function App() {
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
           deleteKeyCode={['Backspace', 'Delete']}
+          multiSelectionKeyCode={['Meta', 'Control']}
           fitView
         >
           <Background />
