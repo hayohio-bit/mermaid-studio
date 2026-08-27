@@ -293,6 +293,58 @@ function classSvgToFlow(svgEl, relations) {
   return { nodes, edges }
 }
 
+// erDiagram: 엔티티는 SVG에서, 관계는 파서 DB에서 가져온다.
+// 관계의 entityA·entityB는 SVG id(entity-<이름>-<번호>)와 같은 형식이라 이름만 추출해 맞춘다.
+function erSvgToFlow(svgEl, relationships) {
+  const nodes = []
+  const svgRect = svgEl.getBoundingClientRect()
+  const entityName = (rawId) => rawId.match(/^entity-(.+)-\d+$/)?.[1] ?? rawId
+
+  svgEl.querySelectorAll('.node').forEach((el) => {
+    const rect = el.getBoundingClientRect()
+    const nodeId = entityName(el.id)
+    const lines = [...el.querySelectorAll('.nodeLabel')]
+      .map((t) => t.textContent.trim())
+      .filter(Boolean)
+    nodes.push({
+      id: nodeId,
+      position: { x: rect.left - svgRect.left, y: rect.top - svgRect.top },
+      data: { label: lines.join('\n') || nodeId, shape: 'rect' },
+      style: {
+        ...shapeStyle('rect'),
+        whiteSpace: 'pre-line',
+        textAlign: 'left',
+        fontSize: '13px',
+      },
+    })
+  })
+
+  const edges = relationships.map((r, i) => {
+    const dotted = r.relSpec?.relType === 'NON_IDENTIFYING'
+    const label = r.roleA || undefined
+    return {
+      id: `e-er-${i}`,
+      source: entityName(r.entityA),
+      target: entityName(r.entityB),
+      label,
+      data: { stroke: dotted ? 'dotted' : 'normal' },
+      zIndex: label ? 1 : 0,
+      style: {
+        stroke: '#9ca3af',
+        strokeWidth: 1.5,
+        ...(dotted ? { strokeDasharray: '5 5' } : {}),
+      },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+      labelStyle: { fontSize: '12px' },
+      labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+      labelBgPadding: [4, 2],
+      labelBgBorderRadius: 4,
+    }
+  })
+
+  return { nodes, edges }
+}
+
 // subgraph를 표현하는 그룹 노드: 좌상단에 제목을 표시하는 반투명 컨테이너
 function GroupNode({ data }) {
   return (
@@ -970,6 +1022,8 @@ function Studio() {
         result = svgToFlow(svgEl, diagram.db.getEdges(), diagram.db.getSubGraphs())
       } else if (diagram.type.toLowerCase().startsWith('class')) {
         result = classSvgToFlow(svgEl, diagram.db.getRelations())
+      } else if (diagram.type === 'er' || diagram.type === 'erDiagram') {
+        result = erSvgToFlow(svgEl, diagram.db.getRelationships())
       } else if (diagram.type.toLowerCase().startsWith('state')) {
         result = stateSvgToFlow(svgEl, diagram.db.getRelations())
       } else {
