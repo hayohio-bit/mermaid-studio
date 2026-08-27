@@ -763,6 +763,7 @@ export default function App() {
         background: '#fafafa',
         padding: '16px',
         gap: '12px',
+        overflowY: 'auto', // 창이 낮을 때는 사이드바 안에서만 스크롤한다
       }}>
         <h3 style={{ margin: 0, fontSize: '14px' }}>Mermaid 코드</h3>
         <textarea

@@ -1,0 +1,12 @@
+/* 브라우저 기본 여백을 제거해서 100vw/100vh 앱이 스크롤 없이 화면에 꼭 맞게 한다 */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
