@@ -14,6 +14,25 @@ const defaultCode = `flowchart LR
   A[시작] --> B[처리] --> C[끝]`
 
 const STORAGE_KEY = 'mermaid-studio'
+const THEME_KEY = 'mermaid-studio-theme'
+
+// 패널·사이드바에 쓰는 중립 색상 테마. 노드·엣지 색은 사용자 콘텐츠라 바꾸지 않는다.
+const themes = {
+  light: {
+    panelBg: '#fafafa',
+    border: '#e5e5e5',
+    text: '#374151',
+    subText: '#6b7280',
+    inputBg: '#ffffff',
+  },
+  dark: {
+    panelBg: '#1f2937',
+    border: '#374151',
+    text: '#e5e7eb',
+    subText: '#9ca3af',
+    inputBg: '#111827',
+  },
+}
 
 function loadSaved() {
   try {
@@ -42,6 +61,7 @@ function detectShape(el) {
 function shapeStyle(shape) {
   const base = {
     background: '#ffffff',
+    color: '#000000', // 캔버스 다크 모드에서 글자가 밝은 색으로 바뀌지 않게 명시한다
     border: '1px solid #d1d5db',
     borderRadius: '6px',
     padding: '8px 16px',
@@ -160,6 +180,7 @@ function stateSvgToFlow(svgEl, relations) {
           }
         : {
             background: '#ffffff',
+            color: '#000000',
             border: '1px solid #d1d5db',
             borderRadius: '6px',
             padding: '8px 16px',
@@ -197,7 +218,7 @@ function stateSvgToFlow(svgEl, relations) {
 }
 
 // 사이드패널 컴포넌트
-function SidePanel({ node, onChange, onClose, onDelete }) {
+function SidePanel({ node, onChange, onClose, onDelete, T }) {
   if (!node) return null
 
   const style = node.style || {}
@@ -206,42 +227,45 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
     <div style={{
       width: '260px',
       padding: '20px',
-      borderLeft: '1px solid #eee',
-      background: '#fafafa',
+      borderLeft: `1px solid ${T.border}`,
+      background: T.panelBg,
       display: 'flex',
       flexDirection: 'column',
       gap: '16px',
       overflowY: 'auto',
     }}>
-      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>노드 편집</h3>
+      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: T.text }}>노드 편집</h3>
 
       {/* 텍스트 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>텍스트</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>텍스트</label>
         <input
           value={node.data.label}
           onChange={(e) => onChange('label', e.target.value)}
           style={{
             padding: '6px 8px',
-            border: '1px solid #ddd',
+            border: `1px solid ${T.border}`,
             borderRadius: '6px',
             fontSize: '14px',
+            background: T.inputBg,
+            color: T.text,
           }}
         />
       </div>
 
       {/* 모양 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>모양</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>모양</label>
         <select
           value={node.data.shape || 'rect'}
           onChange={(e) => onChange('shape', e.target.value)}
           style={{
             padding: '6px 8px',
-            border: '1px solid #ddd',
+            border: `1px solid ${T.border}`,
             borderRadius: '6px',
             fontSize: '13px',
-            background: 'white',
+            background: T.inputBg,
+            color: T.text,
           }}
         >
           <option value="rect">사각형 [ ]</option>
@@ -254,7 +278,7 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
 
       {/* 배경색 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>배경색</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>배경색</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input
             type="color"
@@ -262,13 +286,13 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
             onChange={(e) => onChange('background', e.target.value)}
             style={{ width: '36px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
           />
-          <span style={{ fontSize: '13px', color: '#888' }}>{style.background || '#ffffff'}</span>
+          <span style={{ fontSize: '13px', color: T.subText }}>{style.background || '#ffffff'}</span>
         </div>
       </div>
 
       {/* 텍스트 색상 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>텍스트 색상</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>텍스트 색상</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input
             type="color"
@@ -276,13 +300,13 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
             onChange={(e) => onChange('color', e.target.value)}
             style={{ width: '36px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
           />
-          <span style={{ fontSize: '13px', color: '#888' }}>{style.color || '#000000'}</span>
+          <span style={{ fontSize: '13px', color: T.subText }}>{style.color || '#000000'}</span>
         </div>
       </div>
 
       {/* 테두리 색상 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>테두리 색상</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>테두리 색상</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input
             type="color"
@@ -290,13 +314,13 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
             onChange={(e) => onChange('borderColor', e.target.value)}
             style={{ width: '36px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
           />
-          <span style={{ fontSize: '13px', color: '#888' }}>{style.borderColor || '#d1d5db'}</span>
+          <span style={{ fontSize: '13px', color: T.subText }}>{style.borderColor || '#d1d5db'}</span>
         </div>
       </div>
 
       {/* 폰트 크기 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>폰트 크기: {style.fontSize || '14px'}</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>폰트 크기: {style.fontSize || '14px'}</label>
         <input
           type="range"
           min="10"
@@ -309,7 +333,7 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
 
       {/* 테두리 굵기 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>테두리 굵기: {style.borderWidth || '1px'}</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>테두리 굵기: {style.borderWidth || '1px'}</label>
         <input
           type="range"
           min="1"
@@ -322,7 +346,7 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
 
       {/* 테두리 둥글기 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>모서리 둥글기: {style.borderRadius || '6px'}</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>모서리 둥글기: {style.borderRadius || '6px'}</label>
         <input
           type="range"
           min="0"
@@ -352,9 +376,9 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
         onClick={onClose}
         style={{
           padding: '8px',
-          border: '1px solid #ddd',
+          border: `1px solid ${T.border}`,
           borderRadius: '6px',
-          background: 'white',
+          background: T.inputBg,
           cursor: 'pointer',
           fontSize: '13px',
         }}
@@ -366,13 +390,13 @@ function SidePanel({ node, onChange, onClose, onDelete }) {
 }
 
 // 여러 노드를 선택했을 때의 일괄 편집 패널
-function BulkPanel({ nodes, onChange, onDelete }) {
+function BulkPanel({ nodes, onChange, onDelete, T }) {
   const first = nodes[0]
   const style = first.style || {}
 
   const colorRow = (label, key, fallback) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      <label style={{ fontSize: '12px', color: '#666' }}>{label}</label>
+      <label style={{ fontSize: '12px', color: T.subText }}>{label}</label>
       <input
         type="color"
         value={style[key] || fallback}
@@ -386,14 +410,14 @@ function BulkPanel({ nodes, onChange, onDelete }) {
     <div style={{
       width: '260px',
       padding: '20px',
-      borderLeft: '1px solid #eee',
-      background: '#fafafa',
+      borderLeft: `1px solid ${T.border}`,
+      background: T.panelBg,
       display: 'flex',
       flexDirection: 'column',
       gap: '16px',
       overflowY: 'auto',
     }}>
-      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>
+      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: T.text }}>
         일괄 편집 ({nodes.length}개 노드)
       </h3>
 
@@ -402,7 +426,7 @@ function BulkPanel({ nodes, onChange, onDelete }) {
       {colorRow('테두리 색상', 'borderColor', '#d1d5db')}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>폰트 크기: {style.fontSize || '14px'}</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>폰트 크기: {style.fontSize || '14px'}</label>
         <input
           type="range"
           min="10"
@@ -428,7 +452,7 @@ function BulkPanel({ nodes, onChange, onDelete }) {
       >
         선택한 노드 모두 삭제
       </button>
-      <p style={{ margin: 0, fontSize: '11px', color: '#999', lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: '11px', color: T.subText, lineHeight: 1.5 }}>
         Shift+드래그 또는 Ctrl+클릭으로 여러 노드를 선택할 수 있습니다.
       </p>
     </div>
@@ -436,7 +460,7 @@ function BulkPanel({ nodes, onChange, onDelete }) {
 }
 
 // 엣지 편집 사이드패널
-function EdgePanel({ edge, onChange, onClose, onDelete }) {
+function EdgePanel({ edge, onChange, onClose, onDelete, T }) {
   if (!edge) return null
 
   const style = edge.style || {}
@@ -445,33 +469,35 @@ function EdgePanel({ edge, onChange, onClose, onDelete }) {
     <div style={{
       width: '260px',
       padding: '20px',
-      borderLeft: '1px solid #eee',
-      background: '#fafafa',
+      borderLeft: `1px solid ${T.border}`,
+      background: T.panelBg,
       display: 'flex',
       flexDirection: 'column',
       gap: '16px',
       overflowY: 'auto',
     }}>
-      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>엣지 편집</h3>
+      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: T.text }}>엣지 편집</h3>
 
       {/* 라벨 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>라벨</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>라벨</label>
         <input
           value={edge.label || ''}
           onChange={(e) => onChange('label', e.target.value)}
           style={{
             padding: '6px 8px',
-            border: '1px solid #ddd',
+            border: `1px solid ${T.border}`,
             borderRadius: '6px',
             fontSize: '14px',
+            background: T.inputBg,
+            color: T.text,
           }}
         />
       </div>
 
       {/* 선 색상 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>선 색상</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>선 색상</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input
             type="color"
@@ -479,13 +505,13 @@ function EdgePanel({ edge, onChange, onClose, onDelete }) {
             onChange={(e) => onChange('stroke', e.target.value)}
             style={{ width: '36px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
           />
-          <span style={{ fontSize: '13px', color: '#888' }}>{style.stroke || '#9ca3af'}</span>
+          <span style={{ fontSize: '13px', color: T.subText }}>{style.stroke || '#9ca3af'}</span>
         </div>
       </div>
 
       {/* 선 굵기 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '12px', color: '#666' }}>선 굵기: {style.strokeWidth || 1.5}px</label>
+        <label style={{ fontSize: '12px', color: T.subText }}>선 굵기: {style.strokeWidth || 1.5}px</label>
         <input
           type="range"
           min="1"
@@ -526,9 +552,9 @@ function EdgePanel({ edge, onChange, onClose, onDelete }) {
         onClick={onClose}
         style={{
           padding: '8px',
-          border: '1px solid #ddd',
+          border: `1px solid ${T.border}`,
           borderRadius: '6px',
-          background: 'white',
+          background: T.inputBg,
           cursor: 'pointer',
           fontSize: '13px',
         }}
@@ -546,6 +572,25 @@ function Studio() {
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedEdge, setSelectedEdge] = useState(null)
   const [status, setStatus] = useState(null) // { type: 'error' | 'info', message }
+  const [dark, setDark] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_KEY) === 'dark'
+    } catch {
+      return false
+    }
+  })
+  const T = themes[dark ? 'dark' : 'light']
+
+  const toggleTheme = () => {
+    setDark((d) => {
+      try {
+        localStorage.setItem(THEME_KEY, d ? 'light' : 'dark')
+      } catch {
+        // 저장 실패는 무시한다
+      }
+      return !d
+    })
+  }
   const mermaidRef = useRef(null)
 
   // 코드·노드·엣지가 바뀔 때마다 localStorage에 저장해서 새로고침해도 유지한다
@@ -867,20 +912,20 @@ function Studio() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
+    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: T.panelBg }}>
 
       {/* 왼쪽: 코드 입력 */}
       <div style={{
         width: '280px',
         display: 'flex',
         flexDirection: 'column',
-        borderRight: '1px solid #eee',
-        background: '#fafafa',
+        borderRight: `1px solid ${T.border}`,
+        background: T.panelBg,
         padding: '16px',
         gap: '12px',
         overflowY: 'auto', // 창이 낮을 때는 사이드바 안에서만 스크롤한다
       }}>
-        <h3 style={{ margin: 0, fontSize: '14px' }}>Mermaid 코드</h3>
+        <h3 style={{ margin: 0, fontSize: '14px', color: T.text }}>Mermaid 코드</h3>
         <textarea
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -889,9 +934,11 @@ function Studio() {
             padding: '8px',
             fontFamily: 'monospace',
             fontSize: '13px',
-            border: '1px solid #ddd',
+            border: `1px solid ${T.border}`,
             borderRadius: '6px',
             resize: 'none',
+            background: T.inputBg,
+            color: T.text,
           }}
         />
         {status && (
@@ -932,9 +979,9 @@ function Studio() {
             style={{
               flex: 1,
               padding: '8px',
-              background: 'white',
-              color: '#374151',
-              border: '1px solid #ddd',
+              background: T.inputBg,
+              color: T.text,
+              border: `1px solid ${T.border}`,
               borderRadius: '6px',
               cursor: 'pointer',
               fontSize: '13px',
@@ -948,9 +995,9 @@ function Studio() {
             style={{
               flex: 1,
               padding: '8px',
-              background: 'white',
-              color: '#374151',
-              border: '1px solid #ddd',
+              background: T.inputBg,
+              color: T.text,
+              border: `1px solid ${T.border}`,
               borderRadius: '6px',
               cursor: 'pointer',
               fontSize: '13px',
@@ -964,9 +1011,9 @@ function Studio() {
           onClick={addNode}
           style={{
             padding: '10px',
-            background: 'white',
-            color: '#374151',
-            border: '1px solid #ddd',
+            background: T.inputBg,
+            color: T.text,
+            border: `1px solid ${T.border}`,
             borderRadius: '6px',
             cursor: 'pointer',
             fontSize: '14px',
@@ -980,9 +1027,9 @@ function Studio() {
           onClick={exportToCode}
           style={{
             padding: '10px',
-            background: 'white',
-            color: '#374151',
-            border: '1px solid #ddd',
+            background: T.inputBg,
+            color: T.text,
+            border: `1px solid ${T.border}`,
             borderRadius: '6px',
             cursor: 'pointer',
             fontSize: '14px',
@@ -1031,7 +1078,7 @@ function Studio() {
           onClick={resetAll}
           style={{
             padding: '10px',
-            background: 'white',
+            background: T.inputBg,
             color: '#dc2626',
             border: '1px solid #fca5a5',
             borderRadius: '6px',
@@ -1041,6 +1088,22 @@ function Studio() {
           }}
         >
           초기화
+        </button>
+
+        <button
+          onClick={toggleTheme}
+          style={{
+            padding: '10px',
+            background: T.inputBg,
+            color: T.text,
+            border: `1px solid ${T.border}`,
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+          }}
+        >
+          {dark ? '☀️ 라이트 모드' : '🌙 다크 모드'}
         </button>
       </div>
 
@@ -1058,6 +1121,7 @@ function Studio() {
           deleteKeyCode={['Backspace', 'Delete']}
           multiSelectionKeyCode={['Meta', 'Control']}
           zoomOnDoubleClick={false}
+          colorMode={dark ? 'dark' : 'light'}
           fitView
         >
           <Background />
@@ -1072,6 +1136,7 @@ function Studio() {
           nodes={multiSelectedNodes}
           onChange={onBulkChange}
           onDelete={deleteBulkNodes}
+          T={T}
         />
       ) : (
         <SidePanel
@@ -1079,6 +1144,7 @@ function Studio() {
           onChange={onPanelChange}
           onClose={() => setSelectedNode(null)}
           onDelete={deleteSelectedNode}
+          T={T}
         />
       )}
       <EdgePanel
@@ -1086,6 +1152,7 @@ function Studio() {
         onChange={onEdgePanelChange}
         onClose={() => setSelectedEdge(null)}
         onDelete={deleteSelectedEdge}
+        T={T}
       />
 
       {/* mermaid 숨김 렌더링 영역 */}
