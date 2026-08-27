@@ -69,8 +69,13 @@ function svgToFlow(svgEl) {
         source: match[1],
         target: match[2],
         label: label || undefined,
+        // 라벨이 있는 엣지는 노드 레이어(z-index 0) 위로 올려서 라벨이 노드에 가려지지 않게 한다
+        zIndex: label ? 1 : 0,
         style: { stroke: '#9ca3af', strokeWidth: 1.5 },
         labelStyle: { fontSize: '12px' },
+        labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+        labelBgPadding: [4, 2],
+        labelBgBorderRadius: 4,
       })
     }
   })
@@ -137,8 +142,12 @@ function stateSvgToFlow(svgEl, relations) {
     source: toSvgId(r.id1),
     target: toSvgId(r.id2),
     label: r.relationTitle || undefined,
+    zIndex: r.relationTitle ? 1 : 0,
     style: { stroke: '#9ca3af', strokeWidth: 1.5 },
     labelStyle: { fontSize: '12px' },
+    labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+    labelBgPadding: [4, 2],
+    labelBgBorderRadius: 4,
   }))
 
   return { nodes, edges }
@@ -444,7 +453,14 @@ export default function App() {
     (connection) =>
       setEdges((eds) =>
         addEdge(
-          { ...connection, style: { stroke: '#9ca3af', strokeWidth: 1.5 }, labelStyle: { fontSize: '12px' } },
+          {
+            ...connection,
+            style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+            labelStyle: { fontSize: '12px' },
+            labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+            labelBgPadding: [4, 2],
+            labelBgBorderRadius: 4,
+          },
           eds
         )
       ),
@@ -514,8 +530,12 @@ export default function App() {
 
   const onEdgePanelChange = (key, value) => {
     const apply = (e) => {
-      if (key === 'label' || key === 'animated') {
-        return { ...e, [key]: value }
+      if (key === 'label') {
+        // 라벨이 생기면 노드 위 레이어로 올려서 가려지지 않게 한다 (변환기와 같은 규칙)
+        return { ...e, label: value, zIndex: value ? 1 : 0 }
+      }
+      if (key === 'animated') {
+        return { ...e, animated: value }
       }
       return { ...e, style: { ...e.style, [key]: value } }
     }
