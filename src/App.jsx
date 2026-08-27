@@ -1027,6 +1027,10 @@ function Studio() {
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedEdge, setSelectedEdge] = useState(null)
   const [status, setStatus] = useState(null) // { type: 'error' | 'info', message }
+  // 노드-엣지 모델로 옮길 수 없는 유형은 mermaid가 그린 SVG를 그대로 보여 준다.
+  // { type, svg }가 들어 있으면 미리보기 전용 모드이고, null이면 캔버스 편집 모드다.
+  const [preview, setPreview] = useState(null)
+  const previewRef = useRef(null)
   const [dark, setDark] = useState(() => {
     try {
       return localStorage.getItem(THEME_KEY) === 'dark'
@@ -1134,6 +1138,7 @@ function Studio() {
     setSelectedNode(null)
     setSelectedEdge(null)
     setStatus(null)
+    setPreview(null)
   }
 
   const onNodesChange = useCallback((changes) => {
@@ -1436,14 +1441,22 @@ function Studio() {
       } else if (diagram.type.toLowerCase().startsWith('state')) {
         result = stateSvgToFlow(svgEl, diagram.db.getRelations())
       } else {
+        // 간트·파이처럼 노드-엣지 모델로 옮길 수 없는 유형은 편집 없이 미리보기만 제공한다.
+        // 숨김 영역을 비워서 같은 svg id가 문서에 두 번 들어가지 않게 한다
+        // (mermaid가 만든 스타일 규칙이 #mermaid-diagram 선택자를 쓴다).
+        mermaidRef.current.innerHTML = ''
+        setPreview({ type: diagram.type, svg })
+        setSelectedNode(null)
+        setSelectedEdge(null)
         setStatus({
           type: 'info',
-          message: `지원하지 않는 다이어그램 유형입니다: ${diagram.type} (flowchart, stateDiagram, classDiagram, erDiagram, sequenceDiagram만 변환할 수 있습니다)`,
+          message: `${diagram.type} 유형은 미리보기만 지원합니다. 캔버스 편집과 코드 역변환은 사용할 수 없고, 이미지 내보내기만 됩니다.`,
         })
         return
       }
 
       record()
+      setPreview(null)
       setNodes(result.nodes)
       setEdges(result.edges)
       setSelectedNode(null)
@@ -1476,6 +1489,13 @@ function Studio() {
   // 캔버스 → 코드 역변환. 자동 렌더링이 이어서 실행되면 캔버스의 위치·스타일이
   // mermaid 레이아웃으로 초기화되므로, 이 setCode 한 번은 자동 렌더링을 건너뛴다.
   const exportToCode = () => {
+    if (preview) {
+      setStatus({
+        type: 'info',
+        message: `${preview.type} 유형은 미리보기 전용이라 캔버스 → 코드 역변환을 지원하지 않습니다.`,
+      })
+      return
+    }
     if (nodes.length === 0) {
       setStatus({ type: 'info', message: '내보낼 노드가 없습니다. 먼저 다이어그램을 만들어 주세요.' })
       return
@@ -1517,8 +1537,23 @@ function Studio() {
     }).then((dataUrl) => downloadDataUrl(dataUrl, filename))
   }
 
-  const exportToPng = () => exportImage(toPng, 'mermaid-studio.png')
-  const exportToSvg = () => exportImage(toSvg, 'mermaid-studio.svg')
+  // 미리보기 전용 모드에서는 React Flow 대신 mermaid가 만든 SVG 자체를 대상으로 삼는다.
+  // SVG는 스타일이 문서 안에 들어 있어 그대로 내려도 단독으로 열린다.
+  const exportPreviewSvg = () =>
+    downloadDataUrl(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(preview.svg)}`,
+      'mermaid-studio.svg'
+    )
+
+  const exportPreviewPng = () => {
+    if (!previewRef.current) return
+    toPng(previewRef.current, { backgroundColor: '#ffffff' }).then((dataUrl) =>
+      downloadDataUrl(dataUrl, 'mermaid-studio.png')
+    )
+  }
+
+  const exportToPng = () => (preview ? exportPreviewPng() : exportImage(toPng, 'mermaid-studio.png'))
+  const exportToSvg = () => (preview ? exportPreviewSvg() : exportImage(toSvg, 'mermaid-studio.svg'))
 
   // ---- JSON 파일 저장·불러오기 ----
   const exportToJson = () => {
@@ -1543,6 +1578,7 @@ function Studio() {
         }
         record()
         skipAutoRenderRef.current = true
+        setPreview(null)
         setCode(typeof data.code === 'string' ? data.code : defaultCode)
         setNodes(data.nodes)
         setEdges(data.edges)
@@ -1640,13 +1676,16 @@ function Studio() {
 
         <button
           onClick={addNode}
+          disabled={!!preview}
+          title={preview ? '미리보기 전용 유형에서는 캔버스를 편집할 수 없습니다' : undefined}
           style={{
             padding: '10px',
             background: T.inputBg,
             color: T.text,
             border: `1px solid ${T.border}`,
             borderRadius: '6px',
-            cursor: 'pointer',
+            cursor: preview ? 'not-allowed' : 'pointer',
+            opacity: preview ? 0.5 : 1,
             fontSize: '14px',
             fontWeight: '500',
           }}
@@ -1660,13 +1699,16 @@ function Studio() {
 
         <button
           onClick={exportToCode}
+          disabled={!!preview}
+          title={preview ? '미리보기 전용 유형은 역변환을 지원하지 않습니다' : undefined}
           style={{
             padding: '10px',
             background: T.inputBg,
             color: T.text,
             border: `1px solid ${T.border}`,
             borderRadius: '6px',
-            cursor: 'pointer',
+            cursor: preview ? 'not-allowed' : 'pointer',
+            opacity: preview ? 0.5 : 1,
             fontSize: '14px',
             fontWeight: '500',
           }}
@@ -1808,7 +1850,51 @@ function Studio() {
         </button>
       </div>
 
-      {/* 가운데: React Flow */}
+      {/* 가운데: 캔버스, 또는 미지원 유형일 때는 미리보기 */}
+      {preview ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 12px',
+              borderBottom: `1px solid ${T.border}`,
+              background: T.panelBg,
+              color: T.subText,
+              fontSize: '12px',
+            }}
+          >
+            <span
+              style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: '#fef3c7',
+                color: '#92400e',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              미리보기 전용
+            </span>
+            <span>{preview.type} 유형은 편집할 수 없고 화면 표시와 이미지 내보내기만 됩니다.</span>
+          </div>
+          {/* mermaid 기본 테마는 밝은 배경을 전제하므로 다크 모드에서도 흰 바탕에 그린다 */}
+          <div
+            ref={previewRef}
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              background: '#ffffff',
+              padding: '24px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'flex-start',
+            }}
+            dangerouslySetInnerHTML={{ __html: preview.svg }}
+          />
+        </div>
+      ) : (
       <div style={{ flex: 1 }} onDoubleClick={onCanvasDoubleClick}>
         <ReactFlow
           nodes={nodes}
@@ -1833,6 +1919,7 @@ function Studio() {
           {view.miniMap && <MiniMap />}
         </ReactFlow>
       </div>
+      )}
 
       {/* 오른쪽: 사이드패널 */}
       {multiSelectedNodes.length > 1 ? (
