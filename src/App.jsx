@@ -68,6 +68,72 @@ function svgToFlow(svgEl) {
   return { nodes, edges }
 }
 
+// stateDiagram SVG의 엣지 id(edge0 등)에는 출발·도착 정보가 없어서,
+// 노드 위치는 SVG에서 읽고 엣지는 파서 DB의 relations에서 가져온다
+function stateSvgToFlow(svgEl, relations) {
+  const nodes = []
+  const svgRect = svgEl.getBoundingClientRect()
+  const svgIds = new Set()
+
+  svgEl.querySelectorAll('.node').forEach((el) => {
+    const rect = el.getBoundingClientRect()
+    const idMatch = el.id.match(/^state-(.+)-\d+$/)
+    const nodeId = idMatch ? idMatch[1] : el.id
+    svgIds.add(nodeId)
+    const label = el.querySelector('.nodeLabel')?.textContent.trim() || ''
+    const isMarker = !label // [*] 시작·종료 노드는 라벨이 없는 원으로 렌더링된다
+
+    nodes.push({
+      id: nodeId,
+      position: {
+        x: rect.left - svgRect.left,
+        y: rect.top - svgRect.top,
+      },
+      data: { label: isMarker ? '●' : label },
+      style: isMarker
+        ? {
+            background: '#111827',
+            color: '#111827',
+            border: 'none',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            padding: '0',
+            fontSize: '10px',
+          }
+        : {
+            background: '#ffffff',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            padding: '8px 16px',
+            fontSize: '14px',
+          },
+    })
+  })
+
+  // DB는 시작·종료 노드를 start1·end1처럼 부르지만 SVG id는 root_start·root_end 형태라서 맞춰준다
+  const toSvgId = (dbId) => {
+    if (svgIds.has(dbId)) return dbId
+    const m = dbId.match(/^(start|end)\d+$/)
+    if (m) {
+      const candidate = [...svgIds].find((id) => id.endsWith(`_${m[1]}`) || id === m[1])
+      if (candidate) return candidate
+    }
+    return dbId
+  }
+
+  const edges = relations.map((r, i) => ({
+    id: `e-${r.id1}-${r.id2}-${i}`,
+    source: toSvgId(r.id1),
+    target: toSvgId(r.id2),
+    label: r.relationTitle || undefined,
+    style: { stroke: '#9ca3af', strokeWidth: 1.5 },
+    labelStyle: { fontSize: '12px' },
+  }))
+
+  return { nodes, edges }
+}
+
 // 사이드패널 컴포넌트
 function SidePanel({ node, onChange, onClose, onDelete }) {
   if (!node) return null
@@ -430,14 +496,25 @@ export default function App() {
   const renderDiagram = async () => {
     if (!mermaidRef.current) return
     try {
+      const diagram = await mermaid.mermaidAPI.getDiagramFromText(code)
+
       mermaidRef.current.innerHTML = ''
       const { svg } = await mermaid.render('mermaid-diagram', code)
       mermaidRef.current.innerHTML = svg
-
       const svgEl = mermaidRef.current.querySelector('svg')
-      const { nodes: newNodes, edges: newEdges } = svgToFlow(svgEl)
-      setNodes(newNodes)
-      setEdges(newEdges)
+
+      let result
+      if (diagram.type.startsWith('flowchart')) {
+        result = svgToFlow(svgEl)
+      } else if (diagram.type.toLowerCase().startsWith('state')) {
+        result = stateSvgToFlow(svgEl, diagram.db.getRelations())
+      } else {
+        console.log(`지원하지 않는 다이어그램 유형: ${diagram.type} (flowchart, stateDiagram만 변환 가능)`)
+        return
+      }
+
+      setNodes(result.nodes)
+      setEdges(result.edges)
       setSelectedNode(null)
       setSelectedEdge(null)
     } catch (e) {
