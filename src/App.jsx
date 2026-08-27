@@ -557,7 +557,63 @@ function Studio() {
     }
   }, [code, nodes, edges])
 
+  // ---- 실행 취소 / 다시 실행 ----
+  // 스냅샷은 편집 동작이 시작되기 직전에 기록한다. 슬라이더 드래그처럼 연속으로
+  // 발생하는 변경은 500ms 안에 재기록하지 않아 한 동작으로 묶인다.
+  const stateRef = useRef({ nodes, edges })
+  stateRef.current = { nodes, edges }
+  const pastRef = useRef([])
+  const futureRef = useRef([])
+  const lastRecordRef = useRef(0)
+
+  const record = useCallback(() => {
+    const now = Date.now()
+    if (now - lastRecordRef.current < 500) return
+    lastRecordRef.current = now
+    pastRef.current.push({ nodes: stateRef.current.nodes, edges: stateRef.current.edges })
+    if (pastRef.current.length > 50) pastRef.current.shift()
+    futureRef.current = []
+  }, [])
+
+  const undo = useCallback(() => {
+    const prev = pastRef.current.pop()
+    if (!prev) return
+    futureRef.current.push({ nodes: stateRef.current.nodes, edges: stateRef.current.edges })
+    setNodes(prev.nodes)
+    setEdges(prev.edges)
+    setSelectedNode(null)
+    setSelectedEdge(null)
+  }, [])
+
+  const redo = useCallback(() => {
+    const next = futureRef.current.pop()
+    if (!next) return
+    pastRef.current.push({ nodes: stateRef.current.nodes, edges: stateRef.current.edges })
+    setNodes(next.nodes)
+    setEdges(next.edges)
+    setSelectedNode(null)
+    setSelectedEdge(null)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e) => {
+      // 입력 필드에서는 브라우저의 텍스트 실행 취소를 방해하지 않는다
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
+
   const resetAll = () => {
+    record()
     localStorage.removeItem(STORAGE_KEY)
     setCode(defaultCode)
     setNodes([])
@@ -568,6 +624,7 @@ function Studio() {
   }
 
   const onNodesChange = useCallback((changes) => {
+    if (changes.some((c) => c.type === 'remove')) record()
     setNodes((nds) => applyNodeChanges(changes, nds))
     // 키보드 삭제 등으로 노드가 제거되면 열려 있던 편집 패널을 닫는다
     changes.forEach((c) => {
@@ -575,17 +632,19 @@ function Studio() {
         setSelectedNode((prev) => (prev?.id === c.id ? null : prev))
       }
     })
-  }, [])
+  }, [record])
   const onEdgesChange = useCallback((changes) => {
+    if (changes.some((c) => c.type === 'remove')) record()
     setEdges((eds) => applyEdgeChanges(changes, eds))
     changes.forEach((c) => {
       if (c.type === 'remove') {
         setSelectedEdge((prev) => (prev?.id === c.id ? null : prev))
       }
     })
-  }, [])
+  }, [record])
   const onConnect = useCallback(
-    (connection) =>
+    (connection) => {
+      record()
       setEdges((eds) =>
         addEdge(
           {
@@ -599,8 +658,9 @@ function Studio() {
           },
           eds
         )
-      ),
-    []
+      )
+    },
+    [record]
   )
   const onNodeClick = useCallback((event, node) => {
     setSelectedNode(node)
@@ -612,6 +672,7 @@ function Studio() {
   }, [])
 
   const onPanelChange = (key, value) => {
+    record()
     const apply = (n) => {
       if (key === 'label') {
         return { ...n, data: { ...n.data, label: value } }
@@ -639,6 +700,7 @@ function Studio() {
 
   const addNodeIdRef = useRef(0)
   const addNodeAt = (position) => {
+    record()
     let id
     do {
       id = `n${++addNodeIdRef.current}`
@@ -666,6 +728,7 @@ function Studio() {
   }
 
   const deleteSelectedNode = () => {
+    record()
     setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
     setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id))
     setSelectedNode(null)
@@ -675,12 +738,14 @@ function Studio() {
   const multiSelectedNodes = nodes.filter((n) => n.selected)
 
   const onBulkChange = (key, value) => {
+    record()
     setNodes((nds) =>
       nds.map((n) => (n.selected ? { ...n, style: { ...n.style, [key]: value } } : n))
     )
   }
 
   const deleteBulkNodes = () => {
+    record()
     const ids = new Set(multiSelectedNodes.map((n) => n.id))
     setNodes((nds) => nds.filter((n) => !ids.has(n.id)))
     setEdges((eds) => eds.filter((e) => !ids.has(e.source) && !ids.has(e.target)))
@@ -688,11 +753,13 @@ function Studio() {
   }
 
   const deleteSelectedEdge = () => {
+    record()
     setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id))
     setSelectedEdge(null)
   }
 
   const onEdgePanelChange = (key, value) => {
+    record()
     const apply = (e) => {
       if (key === 'label') {
         // 라벨이 생기면 노드 위 레이어로 올려서 가려지지 않게 한다 (변환기와 같은 규칙)
@@ -734,6 +801,7 @@ function Studio() {
         return
       }
 
+      record()
       setNodes(result.nodes)
       setEdges(result.edges)
       setSelectedNode(null)
@@ -857,6 +925,41 @@ function Studio() {
           다이어그램 생성
         </button>
 
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={undo}
+            title="실행 취소 (Ctrl+Z)"
+            style={{
+              flex: 1,
+              padding: '8px',
+              background: 'white',
+              color: '#374151',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            ↶ 실행 취소
+          </button>
+          <button
+            onClick={redo}
+            title="다시 실행 (Ctrl+Shift+Z)"
+            style={{
+              flex: 1,
+              padding: '8px',
+              background: 'white',
+              color: '#374151',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            ↷ 다시 실행
+          </button>
+        </div>
+
         <button
           onClick={addNode}
           style={{
@@ -951,6 +1054,7 @@ function Studio() {
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
+          onNodeDragStart={record}
           deleteKeyCode={['Backspace', 'Delete']}
           multiSelectionKeyCode={['Meta', 'Control']}
           zoomOnDoubleClick={false}
