@@ -23,6 +23,50 @@ function loadSaved() {
   }
 }
 
+// mermaid SVG의 도형 요소로 노드 모양을 판별한다
+function detectShape(el) {
+  if (el.querySelector('polygon')) return 'diamond' // {마름모}
+  if (el.querySelector('circle')) return 'circle' // ((원))
+  const rect = el.querySelector('rect')
+  if (rect) {
+    const rx = parseFloat(rect.getAttribute('rx') || '0')
+    const height = parseFloat(rect.getAttribute('height') || '0')
+    if (rx > 0 && height > 0 && rx >= height / 2) return 'stadium' // ([스타디움])
+    if (rx > 0) return 'round' // (둥근 사각형)
+  }
+  return 'rect' // [사각형]
+}
+
+// 모양별 노드 스타일. 마름모는 CSS 테두리로 표현할 수 없어 clip-path를 쓰고 테두리를 생략한다
+function shapeStyle(shape) {
+  const base = {
+    background: '#ffffff',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    padding: '8px 16px',
+    fontSize: '14px',
+  }
+  switch (shape) {
+    case 'round':
+      return { ...base, borderRadius: '12px' }
+    case 'stadium':
+      return { ...base, borderRadius: '9999px', padding: '8px 20px' }
+    case 'circle':
+      return { ...base, borderRadius: '50%', padding: '18px' }
+    case 'diamond':
+      return {
+        ...base,
+        border: 'none',
+        borderRadius: 0,
+        padding: '22px 30px',
+        background: '#e5e7eb',
+        clipPath: 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)',
+      }
+    default:
+      return base
+  }
+}
+
 function svgToFlow(svgEl) {
   const nodes = []
   const edges = []
@@ -38,6 +82,7 @@ function svgToFlow(svgEl) {
     const rawId = el.id
     const idMatch = rawId.match(/flowchart-([^-]+)-\d+/)
     const nodeId = idMatch ? idMatch[1] : rawId
+    const shape = detectShape(el)
 
     nodes.push({
       id: nodeId,
@@ -45,14 +90,8 @@ function svgToFlow(svgEl) {
         x: rect.left - svgRect.left,
         y: rect.top - svgRect.top,
       },
-      data: { label: label.trim() },
-      style: {
-        background: '#ffffff',
-        border: '1px solid #d1d5db',
-        borderRadius: '6px',
-        padding: '8px 16px',
-        fontSize: '14px',
-      },
+      data: { label: label.trim(), shape },
+      style: shapeStyle(shape),
     })
   })
 
@@ -506,14 +545,8 @@ export default function App() {
       {
         id,
         position: { x: 60 + (offset % 5) * 30, y: 60 + (offset % 5) * 30 },
-        data: { label: '새 노드' },
-        style: {
-          background: '#ffffff',
-          border: '1px solid #d1d5db',
-          borderRadius: '6px',
-          padding: '8px 16px',
-          fontSize: '14px',
-        },
+        data: { label: '새 노드', shape: 'rect' },
+        style: shapeStyle('rect'),
       },
     ])
   }

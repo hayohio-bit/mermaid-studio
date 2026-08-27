@@ -5,8 +5,20 @@ export function flowToMermaid(nodes, edges) {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const connected = new Set()
 
+  // 노드 모양(data.shape)을 mermaid 괄호 문법으로 되살린다
+  const wrappers = {
+    rect: ['["', '"]'],
+    round: ['("', '")'],
+    stadium: ['(["', '"])'],
+    circle: ['(("', '"))'],
+    diamond: ['{"', '"}'],
+  }
+
   // 라벨의 큰따옴표는 mermaid 문법과 충돌하므로 작은따옴표로 바꾼다
-  const nodeRef = (n) => `${n.id}["${(n.data?.label || n.id).replace(/"/g, "'")}"]`
+  const nodeRef = (n) => {
+    const [open, close] = wrappers[n.data?.shape] || wrappers.rect
+    return `${n.id}${open}${(n.data?.label || n.id).replace(/"/g, "'")}${close}`
+  }
 
   edges.forEach((e) => {
     const s = byId.get(e.source)
