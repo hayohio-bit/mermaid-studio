@@ -935,6 +935,42 @@ function Studio() {
     )
   }, [])
 
+  // ---- JSON 파일 저장·불러오기 ----
+  const exportToJson = () => {
+    const payload = JSON.stringify({ version: 1, code, nodes, edges }, null, 2)
+    downloadDataUrl(
+      `data:application/json;charset=utf-8,${encodeURIComponent(payload)}`,
+      'mermaid-studio.json'
+    )
+  }
+
+  const fileInputRef = useRef(null)
+  const importFromJson = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = '' // 같은 파일을 다시 선택해도 change가 발생하게 한다
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result)
+        if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+          throw new Error('nodes·edges 배열이 없습니다')
+        }
+        record()
+        skipAutoRenderRef.current = true
+        setCode(typeof data.code === 'string' ? data.code : defaultCode)
+        setNodes(data.nodes)
+        setEdges(data.edges)
+        setSelectedNode(null)
+        setSelectedEdge(null)
+        setStatus(null)
+      } catch (e) {
+        setStatus({ type: 'error', message: `JSON 파일을 읽지 못했습니다: ${e.message}` })
+      }
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', background: T.panelBg }}>
 
@@ -1096,6 +1132,46 @@ function Studio() {
           >
             SVG
           </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={exportToJson}
+            style={{
+              flex: 1,
+              padding: '8px',
+              background: T.inputBg,
+              color: T.text,
+              border: `1px solid ${T.border}`,
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            JSON 저장
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              flex: 1,
+              padding: '8px',
+              background: T.inputBg,
+              color: T.text,
+              border: `1px solid ${T.border}`,
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            JSON 열기
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={importFromJson}
+            style={{ display: 'none' }}
+          />
         </div>
 
         <button
