@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { toPng } from 'html-to-image'
 import {
   ReactFlow, Background, Controls, MiniMap,
@@ -11,6 +11,16 @@ mermaid.initialize({ startOnLoad: false })
 
 const defaultCode = `flowchart LR
   A[시작] --> B[처리] --> C[끝]`
+
+const STORAGE_KEY = 'mermaid-studio'
+
+function loadSaved() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
 
 function svgToFlow(svgEl) {
   const nodes = []
@@ -386,12 +396,30 @@ function EdgePanel({ edge, onChange, onClose, onDelete }) {
 }
 
 export default function App() {
-  const [code, setCode] = useState(defaultCode)
-  const [nodes, setNodes] = useState([])
-  const [edges, setEdges] = useState([])
+  const [code, setCode] = useState(() => loadSaved()?.code ?? defaultCode)
+  const [nodes, setNodes] = useState(() => loadSaved()?.nodes ?? [])
+  const [edges, setEdges] = useState(() => loadSaved()?.edges ?? [])
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedEdge, setSelectedEdge] = useState(null)
   const mermaidRef = useRef(null)
+
+  // 코드·노드·엣지가 바뀔 때마다 localStorage에 저장해서 새로고침해도 유지한다
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ code, nodes, edges }))
+    } catch {
+      // 저장 공간 초과 등은 무시한다 (저장 실패가 편집을 막으면 안 된다)
+    }
+  }, [code, nodes, edges])
+
+  const resetAll = () => {
+    localStorage.removeItem(STORAGE_KEY)
+    setCode(defaultCode)
+    setNodes([])
+    setEdges([])
+    setSelectedNode(null)
+    setSelectedEdge(null)
+  }
 
   const onNodesChange = useCallback((changes) => {
     setNodes((nds) => applyNodeChanges(changes, nds))
@@ -611,6 +639,22 @@ export default function App() {
 >
   PNG 내보내기
 </button>
+
+        <button
+          onClick={resetAll}
+          style={{
+            padding: '10px',
+            background: 'white',
+            color: '#dc2626',
+            border: '1px solid #fca5a5',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+          }}
+        >
+          초기화
+        </button>
       </div>
 
       {/* 가운데: React Flow */}
