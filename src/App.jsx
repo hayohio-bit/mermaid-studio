@@ -7,6 +7,8 @@ import {
 import '@xyflow/react/dist/style.css'
 import mermaid from 'mermaid'
 import { flowToMermaid, MINDMAP_TYPE_TO_SHAPE } from './flowToMermaid'
+import TableEditor from './TableEditor'
+import { TABLE_TYPES } from './tableModel.js'
 
 mermaid.initialize({ startOnLoad: false })
 
@@ -1617,7 +1619,9 @@ function Studio() {
         setSelectedEdge(null)
         setStatus({
           type: 'info',
-          message: `${diagram.type} 유형은 미리보기만 지원합니다. 캔버스 편집과 코드 역변환은 사용할 수 없고, 이미지 내보내기만 됩니다.`,
+          message: TABLE_TYPES.includes(diagram.type)
+            ? `${diagram.type} 유형은 캔버스 대신 표로 편집합니다. 표에서 고친 내용은 코드에 바로 반영됩니다.`
+            : `${diagram.type} 유형은 미리보기만 지원합니다. 캔버스 편집과 코드 역변환은 사용할 수 없고, 이미지 내보내기만 됩니다.`,
         })
         return
       }
@@ -2057,9 +2061,13 @@ function Studio() {
                 whiteSpace: 'nowrap',
               }}
             >
-              미리보기 전용
+              {TABLE_TYPES.includes(preview.type) ? '표 편집' : '미리보기 전용'}
             </span>
-            <span>{preview.type} 유형은 편집할 수 없고 화면 표시와 이미지 내보내기만 됩니다.</span>
+            <span>
+              {TABLE_TYPES.includes(preview.type)
+                ? `${preview.type} 유형은 캔버스 대신 아래 표로 편집합니다. 이미지 내보내기도 됩니다.`
+                : `${preview.type} 유형은 편집할 수 없고 화면 표시와 이미지 내보내기만 됩니다.`}
+            </span>
           </div>
           {/* mermaid 기본 테마는 밝은 배경을 전제하므로 다크 모드에서도 흰 바탕에 그린다 */}
           <div
@@ -2075,6 +2083,14 @@ function Studio() {
             }}
             dangerouslySetInnerHTML={{ __html: preview.svg }}
           />
+          {TABLE_TYPES.includes(preview.type) && (
+            <TableEditor
+              type={preview.type}
+              code={code}
+              onChange={(next) => setCode(next)}
+              T={T}
+            />
+          )}
         </div>
       ) : (
       <div style={{ flex: 1 }} onDoubleClick={onCanvasDoubleClick}>

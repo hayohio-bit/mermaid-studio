@@ -35,6 +35,7 @@ npm run dev
 | `sequenceDiagram` | 근사 변환 | flowchart 형식으로 | 시간 축(라이프라인)은 유지되지 않습니다. |
 | `mindmap` | 지원 | mindmap 형식으로 | 트리 구조와 노드 모양을 원래 문법으로 되돌립니다. |
 | `requirementDiagram` | 지원 | requirementDiagram 형식으로 | 요구사항 속성은 노드 라벨의 `키: 값` 줄로 편집합니다. |
-| `pie`, `gantt` 등 나머지 | 미리보기 전용 | 미지원 | 화면 표시와 이미지 내보내기만 됩니다. |
+| `pie`, `gantt`, `journey`, `timeline` | 표 편집 | 표에서 고친 내용이 코드에 반영 | 미리보기 아래의 표에서 행 단위로 편집합니다. |
+| 그 밖의 유형 | 미리보기 전용 | 미지원 | 화면 표시와 이미지 내보내기만 됩니다. |
 
 자세한 사용 방법은 [사용 가이드](docs/guide.md)를 참고하십시오.
