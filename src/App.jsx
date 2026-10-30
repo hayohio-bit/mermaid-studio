@@ -83,12 +83,14 @@ function loadView() {
   }
 }
 function Studio() {
-  const [code, setCode] = useState(() => loadSaved()?.code ?? defaultCode)
-  const [nodes, setNodes] = useState(() => loadSaved()?.nodes ?? [])
-  const [edges, setEdges] = useState(() => loadSaved()?.edges ?? [])
+  // localStorage는 마운트 때 한 번만 읽어 네 초기 상태에 나눠 쓴다
+  const [saved] = useState(loadSaved)
+  const [code, setCode] = useState(() => saved?.code ?? defaultCode)
+  const [nodes, setNodes] = useState(() => saved?.nodes ?? [])
+  const [edges, setEdges] = useState(() => saved?.edges ?? [])
   // 캔버스가 어떤 mermaid 유형에서 왔는지 기억해서, 코드로 되돌릴 때 원본 문법으로 내보낸다.
   // 전용 문법이 없는 유형(state·class·er·sequence)은 flowchart로 통일한다.
-  const [sourceType, setSourceType] = useState(() => loadSaved()?.sourceType ?? 'flowchart')
+  const [sourceType, setSourceType] = useState(() => saved?.sourceType ?? 'flowchart')
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedEdge, setSelectedEdge] = useState(null)
   const [status, setStatus] = useState(null) // { type: 'error' | 'info', message }
@@ -706,7 +708,7 @@ function Studio() {
         <h3 style={{ margin: 0, fontSize: '14px', color: T.text }}>Mermaid 코드</h3>
         <CodeEditor value={code} onChange={setCode} T={T} />
         {status && (
-          <div style={{
+          <div role="status" style={{
             padding: '8px 10px',
             borderRadius: '6px',
             fontSize: '12px',
