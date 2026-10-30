@@ -850,6 +850,7 @@ function SidePanel({ node, onChange, onClose, onDelete, T }) {
           border: `1px solid ${T.border}`,
           borderRadius: '6px',
           background: T.inputBg,
+          color: T.text,
           cursor: 'pointer',
           fontSize: '13px',
         }}
@@ -1016,7 +1017,7 @@ function EdgePanel({ edge, onChange, onClose, onDelete, T }) {
       </div>
 
       {/* 애니메이션 */}
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#444', cursor: 'pointer' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: T.text, cursor: 'pointer' }}>
         <input
           type="checkbox"
           checked={!!edge.animated}
@@ -1047,6 +1048,7 @@ function EdgePanel({ edge, onChange, onClose, onDelete, T }) {
           border: `1px solid ${T.border}`,
           borderRadius: '6px',
           background: T.inputBg,
+          color: T.text,
           cursor: 'pointer',
           fontSize: '13px',
         }}
