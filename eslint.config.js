@@ -29,6 +29,6 @@ export default defineConfig([
   {
     // Playwright 설정과 e2e 스펙은 Node에서 실행된다 (process, fs 등)
     files: ['playwright.config.js', 'e2e/**/*.js'],
-    languageOptions: { globals: { ...globals.browser, ...globals.node } },
+    languageOptions: { globals: globals.node },
   },
 ])

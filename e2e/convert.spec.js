@@ -4,9 +4,7 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 
-const BS = '\\'
-
-// 캔버스 유형: 노드 수(서브그래프 그룹 포함)·엣지 수·노드 라벨(정렬)
+// 캔버스 유형: 노드 수(서브그래프 그룹 포함)·엣지 수·노드 라벨
 const canvasCases = [
   {
     type: 'flowchart',
@@ -20,7 +18,7 @@ const canvasCases = [
       '  F --> G((완료))',
       '  D --> G',
       '  subgraph S[후처리]',
-      `    H[/알림/] --> I[${BS}기록${BS}]`,
+      '    H[/알림/] --> I[\\기록\\]',
       '  end',
       '  G --> H',
     ].join('\n'),
@@ -92,12 +90,10 @@ const nodeLabels = (page) => nodes(page).evaluateAll((els) => els.map((n) => n.t
 const edgeLabels = (page) =>
   page.locator('.react-flow__edge-textwrapper').evaluateAll((els) => els.map((n) => n.textContent.trim()).filter(Boolean).sort())
 
+// 테스트마다 새 브라우저 컨텍스트라 localStorage가 비어 있으므로 기본 코드(A → B → C)로 시작한다
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
-  // 자동 저장된 이전 상태가 결과에 섞이지 않게 비우고 다시 연다
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
-  await expect(nodes(page)).toHaveCount(3) // 기본 코드 A → B → C
+  await expect(nodes(page)).toHaveCount(3)
 })
 
 for (const c of canvasCases) {
@@ -144,13 +140,14 @@ test('JSON 저장·열기 왕복에서 원본 유형(sourceType)이 보존된다
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'JSON 저장' }).click(),
   ])
-  const saved = JSON.parse(readFileSync(await download.path(), 'utf8'))
+  const savedPath = await download.path()
+  const saved = JSON.parse(readFileSync(savedPath, 'utf8'))
   expect(saved.sourceType).toBe('mindmap')
 
   await page.getByRole('button', { name: '초기화' }).click()
   await expect(editor(page)).toHaveValue(/^flowchart LR/)
 
-  await page.locator('input[type="file"]').setInputFiles(await download.path())
+  await page.locator('input[type="file"]').setInputFiles(savedPath)
   await expect(nodes(page)).toHaveCount(mindmap.nodes)
   await page.getByRole('button', { name: '캔버스 → 코드' }).click()
   await expect(editor(page)).toHaveValue(mindmap.code)
