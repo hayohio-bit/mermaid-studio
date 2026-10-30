@@ -20,9 +20,10 @@ npm run dev
 ```bash
 npm run lint   # ESLint
 npm test       # Vitest 단위 테스트 (src/**/*.test.js)
+npm run test:e2e  # Playwright 스모크 테스트 (e2e/, Chromium 필요: npx playwright install chromium)
 ```
 
-`src/flowToMermaid.js`와 `src/tableModel.js`처럼 DOM 없이 실행되는 순수 모듈은 단위 테스트로 검증합니다. GitHub Actions가 main 푸시와 PR마다 lint·테스트·빌드를 실행합니다.
+`src/flowToMermaid.js`와 `src/tableModel.js`처럼 DOM 없이 실행되는 순수 모듈은 단위 테스트로 검증합니다. 코드 → 캔버스 변환기는 mermaid가 그린 SVG를 읽어야 하므로 헤드리스 Chromium에서 유형별 노드·엣지 수를 확인하는 스모크 테스트로 검증합니다. GitHub Actions가 main 푸시와 PR마다 lint·단위 테스트·빌드와 스모크 테스트를 실행합니다.
 
 ## 주요 기능
 
