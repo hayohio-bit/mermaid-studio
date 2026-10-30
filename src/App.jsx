@@ -213,17 +213,22 @@ function shapeStyle(shape) {
 
 const GROUP_PREFIX = 'sub-'
 
-// 숨김 렌더링에 쓰는 mermaid 렌더 id. mermaid 11.17부터 SVG 요소 id 앞에 이 값이 붙는다
+// 숨김 렌더링에 쓰는 mermaid 렌더 id. mermaid 11.17부터 SVG 요소 id 앞에 `<렌더 id>-`가 붙는다
 // (예: flowchart-A-0 → mermaid-diagram-flowchart-A-0, 클러스터 S → mermaid-diagram-S).
-// 변환기는 두 형식을 모두 받아들이도록 접두어를 떼고 비교하고, id로 찾을 때는 둘 다 조회한다.
+// 변환기는 두 형식을 모두 받아들인다.
 const RENDER_ID = 'mermaid-diagram'
-const stripRenderId = (id) =>
-  id.startsWith(`${RENDER_ID}-`) ? id.slice(RENDER_ID.length + 1) : id
+
+// SVG 노드 id(<유형>-<노드id>-<일련번호>)에서 노드 id를 떼어낸다. 노드 id에 하이픈이 들어갈 수 있으므로
+// 탐욕적 매칭으로 마지막 -숫자만 일련번호로 본다. 형식이 다르면 렌더 id 접두어만 뗀 값을 그대로 쓴다.
+function svgNodeId(id, type) {
+  const rawId = id.startsWith(`${RENDER_ID}-`) ? id.slice(RENDER_ID.length + 1) : id
+  return rawId.match(new RegExp(`^${type}-(.+)-\\d+$`))?.[1] ?? rawId
+}
+
+// id로 요소를 찾는다. 접두어가 있는 형식과 없는 형식을 한 번에 조회한다
 function queryById(svgEl, id, selector = '') {
-  return (
-    svgEl.querySelector(`${selector}[id="${CSS.escape(id)}"]`) ||
-    svgEl.querySelector(`${selector}[id="${CSS.escape(`${RENDER_ID}-${id}`)}"]`)
-  )
+  const byId = (value) => `${selector}[id="${CSS.escape(value)}"]`
+  return svgEl.querySelector(`${byId(id)}, ${byId(`${RENDER_ID}-${id}`)}`)
 }
 
 function svgToFlow(svgEl, dbEdges, subGraphs = [], vertices = null) {
@@ -254,15 +259,11 @@ function svgToFlow(svgEl, dbEdges, subGraphs = [], vertices = null) {
   const nodeEls = svgEl.querySelectorAll('.node')
   nodeEls.forEach((el) => {
     const rect = el.getBoundingClientRect()
+    const nodeId = svgNodeId(el.id, 'flowchart')
     const label =
       el.querySelector('span')?.textContent ||
       el.querySelector('text')?.textContent ||
-      el.id
-    // SVG id 형식은 flowchart-<노드id>-<일련번호>. 노드 id에 하이픈이 들어갈 수 있으므로
-    // 탐욕적 매칭으로 마지막 -숫자만 일련번호로 떼어낸다.
-    const rawId = stripRenderId(el.id)
-    const idMatch = rawId.match(/^flowchart-(.+)-\d+$/)
-    const nodeId = idMatch ? idMatch[1] : rawId
+      nodeId
     // 모양은 파서 DB의 vertex type이 정확하다. 없을 때만 SVG 도형으로 추정한다.
     const vertexType = vertices?.get(nodeId)?.type
     const shape = (vertexType && vertexTypeToShape[vertexType]) || detectShape(el)
@@ -312,9 +313,7 @@ function stateSvgToFlow(svgEl, relations) {
 
   svgEl.querySelectorAll('.node').forEach((el) => {
     const rect = el.getBoundingClientRect()
-    const rawId = stripRenderId(el.id)
-    const idMatch = rawId.match(/^state-(.+)-\d+$/)
-    const nodeId = idMatch ? idMatch[1] : rawId
+    const nodeId = svgNodeId(el.id, 'state')
     svgIds.add(nodeId)
     const label = el.querySelector('.nodeLabel')?.textContent.trim() || ''
     const isMarker = !label // [*] 시작·종료 노드는 라벨이 없는 원으로 렌더링된다
@@ -381,9 +380,7 @@ function classSvgToFlow(svgEl, relations) {
 
   svgEl.querySelectorAll('.node').forEach((el) => {
     const rect = el.getBoundingClientRect()
-    const rawId = stripRenderId(el.id)
-    const idMatch = rawId.match(/^classId-(.+)-\d+$/)
-    const nodeId = idMatch ? idMatch[1] : rawId
+    const nodeId = svgNodeId(el.id, 'classId')
     const memberLines = [...el.querySelectorAll('.nodeLabel')]
       .map((t) => t.textContent.trim())
       .filter(Boolean)
@@ -429,10 +426,7 @@ function classSvgToFlow(svgEl, relations) {
 function erSvgToFlow(svgEl, relationships) {
   const nodes = []
   const svgRect = svgEl.getBoundingClientRect()
-  const entityName = (id) => {
-    const rawId = stripRenderId(id)
-    return rawId.match(/^entity-(.+)-\d+$/)?.[1] ?? rawId
-  }
+  const entityName = (id) => svgNodeId(id, 'entity')
 
   svgEl.querySelectorAll('.node').forEach((el) => {
     const rect = el.getBoundingClientRect()
