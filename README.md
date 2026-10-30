@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-개발 서버가 출력하는 주소(기본값은 `http://localhost:5173`)를 브라우저에서 엽니다. 프로덕션 번들은 `npm run build`로 만들고 `npm run preview`로 확인합니다.
+개발 서버가 출력하는 주소 `http://localhost:5199`를 브라우저에서 엽니다(`vite.config.js`에서 포트를 고정합니다). 프로덕션 번들은 `npm run build`로 만들고 `npm run preview`로 확인합니다.
 
 ## 개발
 
