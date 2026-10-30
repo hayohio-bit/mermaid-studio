@@ -15,6 +15,15 @@ npm run dev
 
 개발 서버가 출력하는 주소(기본값은 `http://localhost:5173`)를 브라우저에서 엽니다. 프로덕션 번들은 `npm run build`로 만들고 `npm run preview`로 확인합니다.
 
+## 개발
+
+```bash
+npm run lint   # ESLint
+npm test       # Vitest 단위 테스트 (src/**/*.test.js)
+```
+
+`src/flowToMermaid.js`와 `src/tableModel.js`처럼 DOM 없이 실행되는 순수 모듈은 단위 테스트로 검증합니다. GitHub Actions가 main 푸시와 PR마다 lint·테스트·빌드를 실행합니다.
+
 ## 주요 기능
 
 - Mermaid 코드를 입력하면 600밀리초 뒤에 자동으로 캔버스에 반영됩니다.
