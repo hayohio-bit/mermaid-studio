@@ -9,6 +9,7 @@ import mermaid from 'mermaid'
 import { flowToMermaid, MINDMAP_TYPE_TO_SHAPE } from './flowToMermaid'
 import TableEditor from './TableEditor'
 import { TABLE_TYPES } from './tableModel.js'
+import { serializeWorkspace, parseWorkspace } from './workspaceFile.js'
 
 mermaid.initialize({ startOnLoad: false })
 
@@ -1754,8 +1755,10 @@ function Studio() {
   const exportToSvg = () => (preview ? exportPreviewSvg() : exportImage(toSvg, 'mermaid-studio.svg'))
 
   // ---- JSON 파일 저장·불러오기 ----
+  // 형식은 workspaceFile.js가 정한다. sourceType을 함께 저장해야 불러온 뒤
+  // 캔버스 → 코드가 원본 유형(mindmap·requirement)의 문법으로 나간다.
   const exportToJson = () => {
-    const payload = JSON.stringify({ version: 1, code, nodes, edges }, null, 2)
+    const payload = serializeWorkspace({ code, nodes, edges, sourceType })
     downloadDataUrl(
       `data:application/json;charset=utf-8,${encodeURIComponent(payload)}`,
       'mermaid-studio.json'
@@ -1770,16 +1773,14 @@ function Studio() {
     const reader = new FileReader()
     reader.onload = () => {
       try {
-        const data = JSON.parse(reader.result)
-        if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
-          throw new Error('nodes·edges 배열이 없습니다')
-        }
+        const data = parseWorkspace(reader.result, { defaultCode })
         record()
         skipAutoRenderRef.current = true
         setPreview(null)
-        setCode(typeof data.code === 'string' ? data.code : defaultCode)
+        setCode(data.code)
         setNodes(data.nodes)
         setEdges(data.edges)
+        setSourceType(data.sourceType)
         setSelectedNode(null)
         setSelectedEdge(null)
         setStatus(null)
