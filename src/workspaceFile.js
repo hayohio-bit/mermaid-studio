@@ -4,9 +4,12 @@
 //
 // version 1: { code, nodes, edges }            — sourceType이 없어 flowchart로 읽는다
 // version 2: { code, nodes, edges, sourceType } — 캔버스를 만든 원본 유형을 함께 보존한다
+//
+// 읽을 때는 version을 보지 않고 필드 유무로 호환한다. version은 나중에 호환되지 않는
+// 변경이 생겼을 때 분기할 수 있도록 기록만 해 둔다.
 
 export const WORKSPACE_FILE_VERSION = 2
-export const DEFAULT_SOURCE_TYPE = 'flowchart'
+const DEFAULT_SOURCE_TYPE = 'flowchart'
 
 export function serializeWorkspace({ code, nodes, edges, sourceType = DEFAULT_SOURCE_TYPE }) {
   return JSON.stringify({ version: WORKSPACE_FILE_VERSION, code, nodes, edges, sourceType }, null, 2)

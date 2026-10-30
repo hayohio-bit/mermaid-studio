@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  serializeWorkspace,
-  parseWorkspace,
-  WORKSPACE_FILE_VERSION,
-  DEFAULT_SOURCE_TYPE,
-} from './workspaceFile.js'
+import { serializeWorkspace, parseWorkspace, WORKSPACE_FILE_VERSION } from './workspaceFile.js'
 
 const nodes = [{ id: 'A', position: { x: 0, y: 0 }, data: { label: 'A' } }]
 const edges = [{ id: 'A-B', source: 'A', target: 'B' }]
@@ -13,7 +8,6 @@ describe('parseWorkspace', () => {
   it('version 1 파일(sourceType 없음)은 flowchart로 읽는다', () => {
     const v1 = JSON.stringify({ version: 1, code: 'flowchart LR\n  A', nodes, edges })
     expect(parseWorkspace(v1)).toEqual({ code: 'flowchart LR\n  A', nodes, edges, sourceType: 'flowchart' })
-    expect(DEFAULT_SOURCE_TYPE).toBe('flowchart')
   })
 
   it('nodes·edges 배열이 없으면 안내 메시지로 예외를 던진다', () => {
