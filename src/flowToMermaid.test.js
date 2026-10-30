@@ -4,12 +4,12 @@ import {
   MINDMAP_WRAPPERS,
   SHAPE_TO_MINDMAP_TYPE,
   MINDMAP_TYPE_TO_SHAPE,
-  RELATIONSHIP_TYPES,
 } from './flowToMermaid'
 
 // 테스트용 노드·엣지를 짧게 만드는 도우미
 const node = (id, data = {}, extra = {}) => ({ id, position: { x: 0, y: 0 }, data: { label: id, ...data }, ...extra })
 const edge = (source, target, extra = {}) => ({ id: `${source}-${target}`, source, target, ...extra })
+const BS = '\\' // 백슬래시 한 글자. 모양 문법과 라벨 이스케이프 검사에 쓴다
 
 describe('flowchartFromFlow (기본 유형)', () => {
   it('노드 정의를 먼저 쓰고 엣지를 뒤에 쓴다', () => {
@@ -29,7 +29,6 @@ describe('flowchartFromFlow (기본 유형)', () => {
   })
 
   it('모양마다 대응하는 괄호 문법을 쓴다', () => {
-    const BS = String.fromCharCode(92)
     const expected = {
       rect: 'A["A"]',
       round: 'A("A")',
@@ -54,7 +53,6 @@ describe('flowchartFromFlow (기본 유형)', () => {
   })
 
   it('라벨의 큰따옴표는 작은따옴표로 바꾸고 백슬래시는 제거한다', () => {
-    const BS = String.fromCharCode(92)
     const { code } = flowToMermaid([node('A', { label: `say "hi" ${BS}n` })], [])
     expect(code).toContain(`  A["say 'hi' n"]`)
   })
@@ -175,6 +173,13 @@ describe('mindmapFromFlow', () => {
     expect(code.split('\n')[1]).toBe('  y')
   })
 
+  it('순환만 있어 루트 후보가 없으면 첫 노드를 루트로 삼고 되돌아오는 엣지는 따라가지 않는다', () => {
+    const nodes = [node('a', { mindmapType: 0 }), node('b', { mindmapType: 0 })]
+    const { code, warning } = flowToMermaid(nodes, [edge('a', 'b'), edge('b', 'a')], 'mindmap')
+    expect(code).toBe(['mindmap', '  a', '    b'].join('\n'))
+    expect(warning).toBeNull()
+  })
+
   it('자기 자신을 가리키는 엣지는 버린다', () => {
     const { warning } = flowToMermaid([node('a', { mindmapType: 0 })], [edge('a', 'a')], 'mindmap')
     expect(warning).toContain('부모가 둘 이상이 되는 엣지 1개')
@@ -210,7 +215,7 @@ describe('requirementFromFlow', () => {
   })
 
   it('ASCII 단어가 아닌 이름·값은 큰따옴표로 감싸고 안의 큰따옴표·줄바꿈은 공백으로 바꾼다', () => {
-    const n = reqNode('요구 1', ['r', 'Text: say "hi"'])
+    const n = reqNode('요구\n1', ['r', 'Text: say "hi"'])
     const { code } = flowToMermaid([n], [], 'requirement')
     expect(code).toContain('requirement "요구 1" {')
     expect(code).toContain('  text: "say  hi"')
@@ -233,7 +238,6 @@ describe('requirementFromFlow', () => {
     const invalid = flowToMermaid(nodes, [edge('a', 'b', { label: 'likes' })], 'requirement')
     expect(invalid.code).toContain('a - traces -> b')
     expect(invalid.warning).toContain('a → b 관계 "likes"')
-    expect(RELATIONSHIP_TYPES).toContain('traces')
   })
 
   it('양 끝 노드가 없는 관계는 건너뛴다', () => {

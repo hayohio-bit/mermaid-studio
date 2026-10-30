@@ -4,7 +4,7 @@ import { TABLE_TYPES, parseTable, updateCell, deleteRow, addRow } from './tableM
 const PIE = ['pie title 점유율', '  "A" : 40', '  %% 주석', '  "B" : 35'].join('\n')
 const GANTT = [
   'gantt',
-  '  title 일정',
+  '  title 일정: 1차',
   '  dateFormat YYYY-MM-DD',
   '  section 설계',
   '  요구 분석 :a1, 2026-01-01, 3d',
@@ -12,8 +12,8 @@ const GANTT = [
   '  section 구현',
   '  개발 :2026-01-07, 5d',
 ].join('\n')
-const JOURNEY = ['journey', '  title 하루', '  section 아침', '    기상: 3: 나', '    출근: 2: 나, 동료'].join('\n')
-const TIMELINE = ['timeline', '  title 연혁', '  2024 : 창립', '  2025 : 출시 : 확장', '  : 이어지는 사건'].join('\n')
+const JOURNEY = ['journey', '  title 하루: 평일', '  section 아침', '    기상: 3: 나', '    출근: 2: 나, 동료'].join('\n')
+const TIMELINE = ['timeline', '  title 연혁: 회사', '  2024 : 창립', '  2025 : 출시 : 확장', '  : 이어지는 사건'].join('\n')
 
 describe('parseTable', () => {
   it('지원 유형은 네 가지이고 그 밖의 유형은 null을 돌려준다', () => {
