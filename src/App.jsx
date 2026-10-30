@@ -213,6 +213,19 @@ function shapeStyle(shape) {
 
 const GROUP_PREFIX = 'sub-'
 
+// 숨김 렌더링에 쓰는 mermaid 렌더 id. mermaid 11.17부터 SVG 요소 id 앞에 이 값이 붙는다
+// (예: flowchart-A-0 → mermaid-diagram-flowchart-A-0, 클러스터 S → mermaid-diagram-S).
+// 변환기는 두 형식을 모두 받아들이도록 접두어를 떼고 비교하고, id로 찾을 때는 둘 다 조회한다.
+const RENDER_ID = 'mermaid-diagram'
+const stripRenderId = (id) =>
+  id.startsWith(`${RENDER_ID}-`) ? id.slice(RENDER_ID.length + 1) : id
+function queryById(svgEl, id, selector = '') {
+  return (
+    svgEl.querySelector(`${selector}[id="${CSS.escape(id)}"]`) ||
+    svgEl.querySelector(`${selector}[id="${CSS.escape(`${RENDER_ID}-${id}`)}"]`)
+  )
+}
+
 function svgToFlow(svgEl, dbEdges, subGraphs = [], vertices = null) {
   const nodes = []
   const svgRect = svgEl.getBoundingClientRect()
@@ -222,7 +235,7 @@ function svgToFlow(svgEl, dbEdges, subGraphs = [], vertices = null) {
   const parentOf = new Map() // 노드 id → 그룹 노드 id
   const groupRects = new Map() // 그룹 노드 id → 절대 위치
   subGraphs.forEach((sg) => {
-    const clusterEl = svgEl.querySelector(`.cluster[id="${CSS.escape(sg.id)}"]`)
+    const clusterEl = queryById(svgEl, sg.id, '.cluster')
     if (!clusterEl) return
     const rect = clusterEl.getBoundingClientRect()
     const groupId = `${GROUP_PREFIX}${sg.id}`
@@ -247,7 +260,7 @@ function svgToFlow(svgEl, dbEdges, subGraphs = [], vertices = null) {
       el.id
     // SVG id 형식은 flowchart-<노드id>-<일련번호>. 노드 id에 하이픈이 들어갈 수 있으므로
     // 탐욕적 매칭으로 마지막 -숫자만 일련번호로 떼어낸다.
-    const rawId = el.id
+    const rawId = stripRenderId(el.id)
     const idMatch = rawId.match(/^flowchart-(.+)-\d+$/)
     const nodeId = idMatch ? idMatch[1] : rawId
     // 모양은 파서 DB의 vertex type이 정확하다. 없을 때만 SVG 도형으로 추정한다.
@@ -299,8 +312,9 @@ function stateSvgToFlow(svgEl, relations) {
 
   svgEl.querySelectorAll('.node').forEach((el) => {
     const rect = el.getBoundingClientRect()
-    const idMatch = el.id.match(/^state-(.+)-\d+$/)
-    const nodeId = idMatch ? idMatch[1] : el.id
+    const rawId = stripRenderId(el.id)
+    const idMatch = rawId.match(/^state-(.+)-\d+$/)
+    const nodeId = idMatch ? idMatch[1] : rawId
     svgIds.add(nodeId)
     const label = el.querySelector('.nodeLabel')?.textContent.trim() || ''
     const isMarker = !label // [*] 시작·종료 노드는 라벨이 없는 원으로 렌더링된다
@@ -367,8 +381,9 @@ function classSvgToFlow(svgEl, relations) {
 
   svgEl.querySelectorAll('.node').forEach((el) => {
     const rect = el.getBoundingClientRect()
-    const idMatch = el.id.match(/^classId-(.+)-\d+$/)
-    const nodeId = idMatch ? idMatch[1] : el.id
+    const rawId = stripRenderId(el.id)
+    const idMatch = rawId.match(/^classId-(.+)-\d+$/)
+    const nodeId = idMatch ? idMatch[1] : rawId
     const memberLines = [...el.querySelectorAll('.nodeLabel')]
       .map((t) => t.textContent.trim())
       .filter(Boolean)
@@ -414,7 +429,10 @@ function classSvgToFlow(svgEl, relations) {
 function erSvgToFlow(svgEl, relationships) {
   const nodes = []
   const svgRect = svgEl.getBoundingClientRect()
-  const entityName = (rawId) => rawId.match(/^entity-(.+)-\d+$/)?.[1] ?? rawId
+  const entityName = (id) => {
+    const rawId = stripRenderId(id)
+    return rawId.match(/^entity-(.+)-\d+$/)?.[1] ?? rawId
+  }
 
   svgEl.querySelectorAll('.node').forEach((el) => {
     const rect = el.getBoundingClientRect()
@@ -528,7 +546,7 @@ function mindmapSvgToFlow(svgEl, root) {
   const usedIds = new Set()
 
   const walk = (mmNode, parentId) => {
-    const el = svgEl.querySelector(`#${CSS.escape(`node_${mmNode.id}`)}`)
+    const el = queryById(svgEl, `node_${mmNode.id}`)
     const rect = el?.getBoundingClientRect()
     // 같은 이름의 노드가 여러 개면 id가 겹쳐 React Flow에서 노드가 사라지므로
     // 파서의 일련번호를 붙여 고유하게 만든다
@@ -570,7 +588,7 @@ function requirementSvgToFlow(svgEl, requirements, elements, relationships) {
   const nodes = []
 
   const positionOf = (name) => {
-    const el = svgEl.querySelector(`.node[id="${CSS.escape(name)}"]`)
+    const el = queryById(svgEl, name, '.node')
     const rect = el?.getBoundingClientRect()
     return rect ? { x: rect.left - svgRect.left, y: rect.top - svgRect.top } : { x: 0, y: 0 }
   }
@@ -1572,7 +1590,7 @@ function Studio() {
       const diagram = await mermaid.mermaidAPI.getDiagramFromText(code)
 
       mermaidRef.current.innerHTML = ''
-      const { svg } = await mermaid.render('mermaid-diagram', code)
+      const { svg } = await mermaid.render(RENDER_ID, code)
       mermaidRef.current.innerHTML = svg
       const svgEl = mermaidRef.current.querySelector('svg')
       unscaleSvg(svgEl)
@@ -1612,7 +1630,7 @@ function Studio() {
       } else {
         // 간트·파이처럼 노드-엣지 모델로 옮길 수 없는 유형은 편집 없이 미리보기만 제공한다.
         // 숨김 영역을 비워서 같은 svg id가 문서에 두 번 들어가지 않게 한다
-        // (mermaid가 만든 스타일 규칙이 #mermaid-diagram 선택자를 쓴다).
+        // (mermaid가 만든 스타일 규칙이 렌더 id 선택자를 쓴다).
         mermaidRef.current.innerHTML = ''
         setPreview({ type: diagram.type, svg })
         setSelectedNode(null)
