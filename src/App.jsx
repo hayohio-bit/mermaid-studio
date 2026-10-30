@@ -17,6 +17,7 @@ import {
 } from './converters.js'
 import { GroupNode, SidePanel, BulkPanel, EdgePanel } from './panels.jsx'
 import CodeEditor from './CodeEditor.jsx'
+import useHistory from './useHistory.js'
 
 mermaid.initialize({ startOnLoad: false })
 
@@ -142,59 +143,10 @@ function Studio() {
   }, [code, nodes, edges, sourceType])
 
   // ---- 실행 취소 / 다시 실행 ----
-  // 스냅샷은 편집 동작이 시작되기 직전에 기록한다. 슬라이더 드래그처럼 연속으로
-  // 발생하는 변경은 500ms 안에 재기록하지 않아 한 동작으로 묶인다.
+  // stateRef는 복사·붙여넣기도 최신 nodes·edges를 읽는 데 쓰므로 여기서 만들어 넘긴다.
   const stateRef = useRef({ nodes, edges })
   stateRef.current = { nodes, edges }
-  const pastRef = useRef([])
-  const futureRef = useRef([])
-  const lastRecordRef = useRef(0)
-
-  const record = useCallback(() => {
-    const now = Date.now()
-    if (now - lastRecordRef.current < 500) return
-    lastRecordRef.current = now
-    pastRef.current.push({ nodes: stateRef.current.nodes, edges: stateRef.current.edges })
-    if (pastRef.current.length > 50) pastRef.current.shift()
-    futureRef.current = []
-  }, [])
-
-  const undo = useCallback(() => {
-    const prev = pastRef.current.pop()
-    if (!prev) return
-    futureRef.current.push({ nodes: stateRef.current.nodes, edges: stateRef.current.edges })
-    setNodes(prev.nodes)
-    setEdges(prev.edges)
-    setSelectedNode(null)
-    setSelectedEdge(null)
-  }, [])
-
-  const redo = useCallback(() => {
-    const next = futureRef.current.pop()
-    if (!next) return
-    pastRef.current.push({ nodes: stateRef.current.nodes, edges: stateRef.current.edges })
-    setNodes(next.nodes)
-    setEdges(next.edges)
-    setSelectedNode(null)
-    setSelectedEdge(null)
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e) => {
-      // 입력 필드에서는 브라우저의 텍스트 실행 취소를 방해하지 않는다
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault()
-        if (e.shiftKey) redo()
-        else undo()
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault()
-        redo()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo])
+  const { record, undo, redo } = useHistory({ stateRef, setNodes, setEdges, setSelectedNode, setSelectedEdge })
 
   const resetAll = () => {
     record()
