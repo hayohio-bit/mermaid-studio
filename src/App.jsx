@@ -20,7 +20,8 @@ import CodeEditor from './CodeEditor.jsx'
 
 mermaid.initialize({ startOnLoad: false })
 
-// React Flow nodeTypes는 매 렌더마다 객체가 새로 만들어지지 않도록 컴포넌트 밖 상수로 둔다
+// React Flow nodeTypes는 매 렌더마다 객체가 새로 만들어지지 않도록 컴포넌트 밖 상수로 둔다.
+// panels.jsx에서 컴포넌트와 함께 export하면 react-refresh/only-export-components 규칙에 걸리므로 여기에 둔다.
 const nodeTypes = { labeledGroup: GroupNode }
 
 const defaultCode = `flowchart LR

@@ -1,4 +1,4 @@
-// mermaid가 그린 SVG와 파서 DB를 React Flow 노드·엣지로 바꾸는 변환기 모음.
+// mermaid가 그린 SVG와 파서 DB를 React Flow 노드·엣지로 바꾸는 변환기와, 변환기가 함께 쓰는 공통 스타일·헬퍼 모음.
 // 노드 위치는 SVG 요소의 getBoundingClientRect에서, 엣지·관계는 파서 DB에서 가져온다.
 import { MarkerType } from '@xyflow/react'
 import { MINDMAP_TYPE_TO_SHAPE } from './flowToMermaid'
