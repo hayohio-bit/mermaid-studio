@@ -85,7 +85,7 @@ const tableCases = [
 const editor = (page) => page.locator('textarea').first()
 const nodes = (page) => page.locator('.react-flow__node')
 const edges = (page) => page.locator('.react-flow__edge')
-const statusBox = (page) => page.locator('div[style*="pre-wrap"]').first()
+const statusBox = (page) => page.getByRole('status')
 const nodeLabels = (page) => nodes(page).evaluateAll((els) => els.map((n) => n.textContent.trim()).sort())
 const edgeLabels = (page) =>
   page.locator('.react-flow__edge-textwrapper').evaluateAll((els) => els.map((n) => n.textContent.trim()).filter(Boolean).sort())
