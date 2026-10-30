@@ -12,4 +12,8 @@ export default defineConfig({
     port: 5299,
     strictPort: true,
   },
+  // Vitest 설정. 순수 로직 모듈만 node 환경에서 시험하므로 DOM 환경은 두지 않는다.
+  test: {
+    include: ['src/**/*.test.js'],
+  },
 })
