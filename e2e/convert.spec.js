@@ -152,3 +152,26 @@ test('JSON 저장·열기 왕복에서 원본 유형(sourceType)이 보존된다
   await page.getByRole('button', { name: '캔버스 → 코드' }).click()
   await expect(editor(page)).toHaveValue(mindmap.code)
 })
+
+test('실행 취소·다시 실행이 단축키와 버튼으로 동작한다', async ({ page }) => {
+  // 기본 코드가 캔버스로 변환될 때 renderDiagram이 record()를 호출한다. 직전 기록 후 500ms 안의
+  // 편집은 기록이 생략되므로(대기 없이 실행하면 첫 실행 취소가 빈 캔버스로 돌아가 실패한다) 지나길 기다린다
+  await page.waitForTimeout(600)
+  await page.getByRole('button', { name: '노드 추가' }).click()
+  await expect(nodes(page)).toHaveCount(4)
+
+  await page.keyboard.press('Control+z')
+  await expect(nodes(page)).toHaveCount(3)
+  await page.keyboard.press('Control+Shift+z')
+  await expect(nodes(page)).toHaveCount(4)
+
+  await page.keyboard.press('Control+z')
+  await expect(nodes(page)).toHaveCount(3)
+  await page.keyboard.press('Control+y')
+  await expect(nodes(page)).toHaveCount(4)
+
+  await page.getByRole('button', { name: /실행 취소/ }).click()
+  await expect(nodes(page)).toHaveCount(3)
+  await page.getByRole('button', { name: /다시 실행/ }).click()
+  await expect(nodes(page)).toHaveCount(4)
+})
